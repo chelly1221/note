@@ -40,14 +40,18 @@ const MarkdownContext = createContext<{
 
 function StoredImage({ id, alt }: { id: string; alt: string }) {
   const attachment = useLiveQuery(() => getDb().attachments.get(id), [id]);
-  const [url, setUrl] = useState('');
+  const [image, setImage] = useState<{ id: string; blob: Blob; url: string }>();
   useEffect(() => {
     if (!attachment?.blob) return;
     const objectUrl = URL.createObjectURL(attachment.blob);
     // oxlint-disable-next-line react/react-compiler -- Object URLs are browser resources allocated after commit and revoked on cleanup.
-    setUrl(objectUrl);
+    setImage({ id, blob: attachment.blob, url: objectUrl });
     return () => URL.revokeObjectURL(objectUrl);
-  }, [attachment?.blob]);
+  }, [id, attachment?.blob]);
+  const url =
+    image?.id === id && image?.blob === attachment?.blob
+      ? image?.url
+      : undefined;
   if (!url)
     return (
       <span className="image-unavailable">

@@ -31,6 +31,25 @@ const mutation = () => ({
 });
 
 describe('NAS-backed storage', () => {
+  it('keeps rejecting a different local index identity on every retry', async () => {
+    store.close();
+    const replacementId = randomUUID();
+    await fs.writeFile(
+      path.join(config.nasRoot, '.note-storage'),
+      replacementId,
+    );
+    store = new NoteStorage({ ...config, storageId: replacementId });
+    await expect(store.initialize()).rejects.toMatchObject({
+      code: 'storage_mismatch',
+    });
+    await expect(store.mutate(mutation())).rejects.toMatchObject({
+      code: 'storage_mismatch',
+    });
+    await expect(store.changes(0)).rejects.toMatchObject({
+      code: 'storage_mismatch',
+    });
+    expect(await fs.readdir(path.join(config.nasRoot, 'journal'))).toEqual([]);
+  });
   it('preserves imported modification dates, then timestamps later edits on the server', async () => {
     const input = mutation();
     input.note.createdAt = '2024-02-03T04:05:06.000Z';

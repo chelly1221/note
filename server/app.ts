@@ -10,6 +10,7 @@ import {
   timingSafeEqual,
 } from 'node:crypto';
 import { z, ZodError } from 'zod';
+import type { ServerResponse } from 'node:http';
 import { idSchema, mutationSchema } from '../lib/validation.ts';
 import { MAX_IMAGE_BYTES, APP_VERSION } from '../lib/model.ts';
 import { validImage } from '../lib/image-format.ts';
@@ -58,7 +59,7 @@ export async function buildApp(config: AppConfig) {
     logger: config.logger ?? false,
     bodyLimit: MAX_IMAGE_BYTES + 1024,
     requestTimeout: 20000,
-    // Exactly one shared Caddy proxy reaches this container; the published port is loopback-only.
+    // The trusted Tailscale Serve proxy reaches the loopback-only published port.
     trustProxy: (_address, hop) => hop === 0,
   });
   const storage = new NoteStorage(config);
@@ -69,6 +70,7 @@ export async function buildApp(config: AppConfig) {
     .update(config.accessKey ?? '')
     .digest();
   const origins = new Set(config.origins);
+  const liveClients = new Set<ServerResponse>();
   let initError = false;
   try {
     await deadline(storage.initialize());
@@ -113,6 +115,7 @@ export async function buildApp(config: AppConfig) {
     origin: (origin, callback) =>
       callback(null, !origin || origins.has(origin)),
     credentials: true,
+    maxAge: 600,
     methods: ['GET', 'POST', 'PUT', 'OPTIONS'],
     allowedHeaders: [
       'Content-Type',
@@ -285,9 +288,40 @@ export async function buildApp(config: AppConfig) {
       serverTime: new Date().toISOString(),
     };
   });
-  app.post('/api/sync/push', async (request) =>
-    deadline(storage.mutate(mutationSchema.parse(request.body))),
-  );
+  app.post('/api/sync/push', async (request) => {
+    const result = await deadline(
+      storage.mutate(mutationSchema.parse(request.body)),
+    );
+    if (result.outcome === 'saved') {
+      for (const client of liveClients) {
+        if (!client.write('event: change\ndata: {}\n\n')) client.destroy();
+      }
+    }
+    return result;
+  });
+  app.get('/api/sync/events', async (_request, reply) => {
+    if (liveClients.size >= 64)
+      return reply.code(429).send({ code: 'too_many_connections' });
+    reply.hijack();
+    const response = reply.raw;
+    for (const [name, value] of Object.entries(reply.getHeaders()))
+      if (value !== undefined) response.setHeader(name, value);
+    response.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-store, no-transform',
+      'X-Accel-Buffering': 'no',
+    });
+    response.write('retry: 5000\n: connected\n\n');
+    liveClients.add(response);
+    const heartbeat = setInterval(() => {
+      if (!response.write(': keepalive\n\n')) response.destroy();
+    }, 25000);
+    heartbeat.unref();
+    response.on('close', () => {
+      clearInterval(heartbeat);
+      liveClients.delete(response);
+    });
+  });
   app.get('/api/sync/pull', async (request) => {
     const { cursor } = z
       .object({
@@ -348,6 +382,10 @@ export async function buildApp(config: AppConfig) {
   });
 
   await registerPublicWeb(app, config);
+  app.addHook('preClose', async () => {
+    for (const client of liveClients) client.end();
+    liveClients.clear();
+  });
   app.addHook('onClose', async () => storage.close());
   return { app, storage };
 }

@@ -28,21 +28,14 @@ beforeEach(async () => {
   const nasRoot = path.join(root, 'nas');
   await fs.mkdir(nasRoot);
   await fs.writeFile(path.join(nasRoot, '.note-storage'), storageId);
-  const accessKey = 'test-key-' + crypto.randomUUID();
   server = await buildApp({
     nasRoot,
     stateDir: path.join(root, 'state'),
     storageId,
-    accessKey,
+    tailscaleLogins: ['owner@example.test'],
     origins: ['https://notes.test'],
     secureCookies: true,
   });
-  const login = await server.app.inject({
-    method: 'POST',
-    url: '/api/auth/login',
-    payload: { key: accessKey, deviceName: 'sync-test' },
-  });
-  const cookie = login.cookies[0].name + '=' + login.cookies[0].value;
   afterRequest = undefined;
   beforeRequest = undefined;
   fetchMock = vi.fn(async (input: string, init: RequestInit = {}) => {
@@ -55,7 +48,7 @@ beforeEach(async () => {
     const result = await server.app.inject({
       method: (init.method ?? 'GET') as 'GET' | 'POST' | 'PUT',
       url: route,
-      headers: { ...headers, cookie },
+      headers: { ...headers, 'tailscale-user-login': 'owner@example.test' },
       payload: payload as string | undefined,
     });
     await afterRequest?.(route);

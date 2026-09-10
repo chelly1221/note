@@ -1,7 +1,7 @@
-"""Run on the app server: verify HTTPS, NAS durability, images and revision conflicts.
+"""Run on the Tailscale-connected app server: verify NAS durability and conflicts.
 
 Creates one clearly labelled test note and leaves it in recoverable trash.
-The private connection key stays inside this process and is never printed.
+Authentication comes only from Tailscale Serve; no application key is used.
 """
 from datetime import datetime, timezone
 import hashlib
@@ -12,24 +12,21 @@ from uuid import uuid4
 
 base = Path('/srv/note')
 nas = Path('/mnt/note/note')
-env = dict(line.split('=', 1) for line in (base / '.env').read_text().splitlines() if '=' in line)
 origin = 'https://note.3chan.kr'
-token = None
+private_origin = 'https://audax-vm.tail62313c.ts.net:8443'
 
 def request(route, payload=None, method=None):
-    headers = {'Origin': origin, 'X-Note-Request': '1', 'X-Note-Client': 'native'}
-    if token:
-        headers['Authorization'] = 'Bearer ' + token
+    headers = {'Origin': origin, 'X-Note-Request': '1'}
     if payload is not None:
         headers['Content-Type'] = 'application/json'
-    req = Request(origin + route, data=json.dumps(payload).encode() if payload is not None else None,
+    req = Request(private_origin + route, data=json.dumps(payload).encode() if payload is not None else None,
                   headers=headers, method=method)
     with urlopen(req, timeout=20) as response:
         content = response.read()
         return json.loads(content) if 'application/json' in response.headers.get('Content-Type', '') else content
 
 assert request('/api/health')['storageReady']
-token = request('/api/auth/login', {'key': env['APP_ACCESS_KEY'], 'deviceName': 'Release verification'})['token']
+assert request('/api/auth/identity')['auth'] == 'tailscale'
 assert request('/api/status')['storageId'] == (nas / '.note-storage').read_text().strip()
 all_notes = {}
 cursor = 0

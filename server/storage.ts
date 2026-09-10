@@ -129,18 +129,19 @@ export class NoteStorage {
         CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL, device_name TEXT NOT NULL);
         CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
         CREATE INDEX IF NOT EXISTS idx_changes_note_sequence ON changes(note_id, sequence DESC);`);
-      const storedId = this.index
-        .prepare('SELECT value FROM metadata WHERE key = ?')
-        .get('storageId') as { value: string } | undefined;
-      if (storedId && storedId.value !== this.config.storageId)
-        throw new StorageError(
-          'storage_mismatch',
-          '서버의 저장소 정보가 일치하지 않습니다.',
-        );
-      this.index
-        .prepare('INSERT OR IGNORE INTO metadata(key,value) VALUES (?,?)')
-        .run('storageId', this.config.storageId);
     }
+    // A failed initialization can leave an open index. Recheck on every retry.
+    const storedId = this.index
+      .prepare('SELECT value FROM metadata WHERE key = ?')
+      .get('storageId') as { value: string } | undefined;
+    if (storedId && storedId.value !== this.config.storageId)
+      throw new StorageError(
+        'storage_mismatch',
+        '서버의 저장소 정보가 일치하지 않습니다.',
+      );
+    this.index
+      .prepare('INSERT OR IGNORE INTO metadata(key,value) VALUES (?,?)')
+      .run('storageId', this.config.storageId);
     for (const directory of ['journal', 'notes', 'attachments'])
       await fs.mkdir(path.join(this.config.nasRoot, directory), {
         recursive: true,
@@ -327,14 +328,17 @@ export class NoteStorage {
       this.applyEntry(entry);
       // Human-readable exports are derived data. The immutable journal is authoritative.
       try {
-        await atomicWrite(
-          path.join(this.config.nasRoot, 'notes', `${note.id}.json`),
-          JSON.stringify(note, null, 2),
-        );
-        await atomicWrite(
-          path.join(this.config.nasRoot, 'notes', `${note.id}.md`),
-          `# ${note.title || '제목 없는 노트'}\n\n${note.content}\n`,
-        );
+        // Both writes must settle before the next revision, including failures.
+        await Promise.allSettled([
+          atomicWrite(
+            path.join(this.config.nasRoot, 'notes', `${note.id}.json`),
+            JSON.stringify(note, null, 2),
+          ),
+          atomicWrite(
+            path.join(this.config.nasRoot, 'notes', `${note.id}.md`),
+            `# ${note.title || '제목 없는 노트'}\n\n${note.content}\n`,
+          ),
+        ]);
       } catch {
         /* A later repair can regenerate exports from the committed journal. */
       }

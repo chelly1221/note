@@ -5,18 +5,16 @@ const required = (key: string) => {
   if (!value) throw new Error(`${key} is required`);
   return value;
 };
+if (required('AUTH_MODE') !== 'tailscale')
+  throw new Error('The production server requires AUTH_MODE=tailscale.');
 const { app } = await buildApp({
   nasRoot: required('NAS_ROOT'),
   stateDir: required('STATE_DIR'),
   storageId: required('NAS_STORAGE_ID'),
-  accessKey: process.env.APP_ACCESS_KEY,
-  tailscaleLogins:
-    process.env.AUTH_MODE === 'tailscale'
-      ? required('TAILSCALE_ALLOWED_LOGINS')
-          .split(',')
-          .map((login) => login.trim())
-          .filter(Boolean)
-      : undefined,
+  tailscaleLogins: required('TAILSCALE_ALLOWED_LOGINS')
+    .split(',')
+    .map((login) => login.trim())
+    .filter(Boolean),
   requireMount: process.env.REQUIRE_NAS_MOUNT !== 'false',
   secureCookies: process.env.SECURE_COOKIES !== 'false',
   origins: required('APP_ORIGINS')

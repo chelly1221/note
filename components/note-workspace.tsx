@@ -140,7 +140,7 @@ function WorkspaceContent() {
   const [folderBusy, setFolderBusy] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
-  const { setOpenMobile, setOpen } = useSidebar();
+  const { setOpenMobile, setOpen, openMobile } = useSidebar();
   const notes = useLiveQuery(() => getDb().notes.toArray(), [], []);
   const storedFolders = useLiveQuery(
     () => getSetting<string[]>('folders', []),
@@ -408,9 +408,16 @@ function WorkspaceContent() {
   const handleNativeBack = useEffectEvent(async () => {
     if (!(await finishEditing())) return;
     if (folderBusy) return;
+    if (
+      !window.dispatchEvent(
+        new Event('note-dismiss-overlay', { cancelable: true }),
+      )
+    )
+      return;
     if (removingFolder) setRemovingFolder(null);
     else if (settingsOpen) setSettingsOpen(false);
     else if (folderDialog) setFolderDialog(false);
+    else if (openMobile) setOpenMobile(false);
     else if (focus) setFocusMode(false);
     else if (mobileEditor) setMobileEditor(false);
     else await (await import('@capacitor/app')).App.minimizeApp();

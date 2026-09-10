@@ -1,6 +1,6 @@
 {
   "name": "note",
-  "version": "0.1.1",
+  "version": "0.1.4",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -24,7 +24,6 @@
     "@capacitor/core": "8.5.1",
     "@capacitor/filesystem": "8.1.3",
     "@capacitor/keyboard": "8.0.5",
-    "@capacitor/preferences": "8.0.1",
     "@capacitor/share": "8.0.1",
     "@fastify/cookie": "11.1.2",
     "@fastify/cors": "11.3.0",

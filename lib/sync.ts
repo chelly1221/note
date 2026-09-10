@@ -28,6 +28,7 @@ const initial: SyncSnapshot = {
 let snapshot: SyncSnapshot = initial;
 const listeners = new Set<() => void>();
 let running = false;
+let rerunRequested = false;
 let interval: ReturnType<typeof setInterval> | undefined;
 const scheduler = createSyncScheduler(() => {
   void syncNow({ automatic: true });
@@ -78,8 +79,8 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const settings = config ?? (await connectionSettings());
   const headers = new Headers(options.headers);
-  headers.set('X-Note-Request', '1');
-  if (Capacitor.isNativePlatform()) headers.set('X-Note-Client', 'native');
+  if ((options.method ?? 'GET').toUpperCase() !== 'GET')
+    headers.set('X-Note-Request', '1');
   const response = await fetch(`${settings.serverUrl}${pathname}`, {
     ...options,
     headers,
@@ -343,7 +344,10 @@ async function performSync() {
 }
 
 export async function syncNow(options: { automatic?: boolean } = {}) {
-  if (running) return;
+  if (running) {
+    rerunRequested = true;
+    return;
+  }
   if (
     options.automatic &&
     (snapshot.state === 'auth-required' || Date.now() < nextAutomaticAttempt)
@@ -363,6 +367,10 @@ export async function syncNow(options: { automatic?: boolean } = {}) {
     else await performSync();
   } finally {
     running = false;
+    if (rerunRequested) {
+      rerunRequested = false;
+      requestSync();
+    }
   }
 }
 
@@ -376,6 +384,13 @@ export async function refreshPending() {
 }
 export async function startSync() {
   publish({ lastSyncedAt: await getSetting('lastSyncedAt', null) });
+  const settings = await connectionSettings();
+  const events =
+    settings.connected && typeof EventSource !== 'undefined'
+      ? new EventSource(`${settings.serverUrl}/api/sync/events`)
+      : undefined;
+  events?.addEventListener('open', requestSync);
+  events?.addEventListener('change', requestSync);
   if (!interval)
     interval = setInterval(() => {
       void syncNow({ automatic: true });
@@ -397,6 +412,7 @@ export async function startSync() {
   window.addEventListener('focus', requestSync);
   requestSync();
   return () => {
+    events?.close();
     clearInterval(interval);
     interval = undefined;
     scheduler.cancel();

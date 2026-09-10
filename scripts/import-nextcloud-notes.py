@@ -65,22 +65,18 @@ for source in export['notes']:
     prepared.append((source, filename, note, digest(raw)))
 assert len({note['id'] for _, _, note, _ in prepared}) == len(prepared)
 
-env = dict(line.split('=', 1) for line in (base / '.env').read_text().splitlines() if '=' in line)
-token = None
 def request(route, payload=None):
-    headers = {'X-Note-Request': '1', 'X-Note-Client': 'native'}
-    if token:
-        headers['Authorization'] = 'Bearer ' + token
+    headers = {'Origin': 'https://note.3chan.kr', 'X-Note-Request': '1'}
     if payload is not None:
         headers['Content-Type'] = 'application/json'
-    req = Request('http://127.0.0.1:8787' + route,
+    req = Request('https://audax-vm.tail62313c.ts.net:8443' + route,
                   data=json.dumps(payload, ensure_ascii=False).encode() if payload is not None else None,
                   headers=headers)
     with urlopen(req, timeout=30) as response:
         return json.loads(response.read())
 
 assert request('/api/health')['storageReady']
-token = request('/api/auth/login', {'key': env['APP_ACCESS_KEY'], 'deviceName': 'Nextcloud migration'})['token']
+assert request('/api/auth/identity')['auth'] == 'tailscale'
 assert request('/api/status')['storageId'] == str(namespace)
 report = []
 created = 0

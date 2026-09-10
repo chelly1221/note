@@ -3,6 +3,7 @@ import {
   lazy,
   Suspense,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -76,7 +77,7 @@ import {
   type LocalNote,
   type NoteDocument,
 } from '@/lib/model';
-import { registerEditGuard } from '@/lib/edit-session';
+import { finishEditing, registerEditGuard } from '@/lib/edit-session';
 import { EditWriter } from '@/lib/edit-writer';
 
 type Editable = EditableNote;
@@ -121,6 +122,7 @@ export function NoteEditor({
   const [properties, setProperties] = useState(false);
   const [tagInput, setTagInput] = useState(note.tags.join(', '));
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [versions, setVersions] = useState<NoteDocument[]>([]);
   const [historyBusy, setHistoryBusy] = useState(false);
   const [historyError, setHistoryError] = useState('');
@@ -134,6 +136,19 @@ export function NoteEditor({
     getSyncSnapshot,
     getServerSyncSnapshot,
   );
+  const dismissOverlay = useEffectEvent((event: Event) => {
+    if (historyOpen || properties || menuOpen) {
+      event.preventDefault();
+      if (historyOpen) setHistoryOpen(false);
+      else if (properties) setProperties(false);
+      else setMenuOpen(false);
+    }
+  });
+  useEffect(() => {
+    const dismiss = (event: Event) => dismissOverlay(event);
+    window.addEventListener('note-dismiss-overlay', dismiss);
+    return () => window.removeEventListener('note-dismiss-overlay', dismiss);
+  }, []);
   /* oxlint-disable react/react-compiler -- Apply incoming IndexedDB subscription snapshots only after pending editor writes finish. */
   useEffect(() => {
     if (
@@ -489,7 +504,7 @@ export function NoteEditor({
           >
             <Star className={draft.pinned ? 'is-starred' : ''} />
           </Button>
-          <DropdownMenu>
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger
               render={
                 <Button variant="ghost" size="icon" aria-label="노트 더보기" />
@@ -761,11 +776,13 @@ export function NoteEditor({
               ? '저장 중'
               : sync.state === 'unconfigured'
                 ? '기기에 자동 저장'
-                : sync.pending
-                  ? '동기화 대기'
-                  : sync.state === 'idle'
-                    ? 'NAS에 동기화됨'
-                    : '기기에 저장 · 연결 대기'}
+                : sync.state === 'syncing'
+                  ? '동기화 중'
+                  : sync.pending
+                    ? '동기화 대기'
+                    : sync.state === 'idle'
+                      ? 'NAS에 동기화됨'
+                      : '기기에 저장 · 연결 대기'}
         </span>
         <span>
           {characterCount.toLocaleString()}자<span className="meta-dot">·</span>
@@ -809,7 +826,10 @@ export function NoteEditor({
             id="note-tags"
             className="dialog-input"
             value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
+            onChange={(e) => {
+              setTagInput(e.target.value);
+              void change({ tags: normalizeTags(e.target.value) });
+            }}
             placeholder="아이디어, 일상, 작업"
             maxLength={820}
           />
@@ -818,11 +838,10 @@ export function NoteEditor({
           </p>
           <Button
             onClick={() => {
-              void change({ tags: normalizeTags(tagInput) });
               setProperties(false);
             }}
           >
-            적용하기
+            완료
           </Button>
         </DialogContent>
       </Dialog>
@@ -847,7 +866,7 @@ export function NoteEditor({
               {versions.map((version) => (
                 <div key={version.revision}>
                   <div>
-                    <strong>{version.title || '제목 없는 노트'}</strong>
+                    <strong>버전 {version.revision}</strong>
                     <span>
                       {new Date(version.updatedAt).toLocaleString('ko-KR')} ·
                       버전 {version.revision}
@@ -857,16 +876,26 @@ export function NoteEditor({
                   <Button
                     variant="outline"
                     onClick={async () => {
-                      const copy = await createLocalNote({
-                        ...version,
-                        id: crypto.randomUUID(),
-                        revision: 0,
-                        title: `${version.title} (이전 버전)`,
-                        deletedAt: null,
-                      });
-                      onSelect(copy.id);
-                      setHistoryOpen(false);
-                      await refreshPending();
+                      if (!(await finishEditing())) return;
+                      try {
+                        const copy = await createLocalNote({
+                          ...version,
+                          id: crypto.randomUUID(),
+                          revision: 0,
+                          title: `${current.current.title || '제목 없는 노트'} (이전 버전)`,
+                          deletedAt: null,
+                        });
+                        onSelect(copy.id);
+                        setHistoryOpen(false);
+                        await refreshPending();
+                      } catch (error) {
+                        notify(
+                          error instanceof Error
+                            ? error.message
+                            : '이전 버전을 열지 못했어요.',
+                          { error: true },
+                        );
+                      }
                     }}
                   >
                     사본으로 열기
