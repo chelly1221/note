@@ -23,7 +23,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { PanelLeftIcon } from 'lucide-react';
+import { MenuIcon } from 'lucide-react';
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state';
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
@@ -273,7 +273,7 @@ function SidebarTrigger({
       }}
       {...props}
     >
-      <PanelLeftIcon className="cn-rtl-flip" />
+      <MenuIcon aria-hidden="true" />
       <span className="sr-only">메뉴 열고 닫기</span>
     </Button>
   );
