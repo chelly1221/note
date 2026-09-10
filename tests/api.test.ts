@@ -40,6 +40,35 @@ afterEach(async () => {
 const headers = () => ({ cookie, origin, 'x-note-request': '1' });
 
 describe('authenticated sync API', () => {
+  it('serves the public install file separately from private notes and secrets', async () => {
+    const config = server.storage.config;
+    await server.app.close();
+    const downloadsRoot = path.join(root, 'releases');
+    await fs.mkdir(downloadsRoot);
+    await fs.writeFile(
+      path.join(downloadsRoot, 'note-0.1.0.apk'),
+      'test-apk-bytes',
+    );
+    await fs.writeFile(path.join(root, 'private.txt'), 'private-data');
+    server = await buildApp({
+      ...config,
+      accessKey,
+      origins: [origin],
+      secureCookies: true,
+      downloadsRoot,
+    });
+    const apk = await server.app.inject('/downloads/note-0.1.0.apk');
+    expect(apk.statusCode).toBe(200);
+    expect(apk.headers['content-type']).toBe(
+      'application/vnd.android.package-archive',
+    );
+    expect(apk.headers['content-disposition']).toContain('attachment;');
+    expect(apk.body).toBe('test-apk-bytes');
+    expect(
+      (await server.app.inject('/downloads/%2e%2e/private.txt')).statusCode,
+    ).toBe(404);
+    expect((await server.app.inject('/api/status')).statusCode).toBe(401);
+  });
   it('allows only the built inline scripts and caches hashed assets immutably', async () => {
     const config = server.storage.config;
     await server.app.close();

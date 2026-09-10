@@ -13,16 +13,17 @@ services:
       NAS_ROOT: /nas/note
       STATE_DIR: /state
       WEB_ROOT: /app/web
+      DOWNLOADS_ROOT: /downloads
       REQUIRE_NAS_MOUNT: 'true'
       SECURE_COOKIES: 'true'
     ports:
       - '127.0.0.1:8787:8787'
     networks:
-      web:
-        aliases: [note-app]
+      - private
     volumes:
       - /mnt/note:/nas
       - ./state:/state
+      - ./releases:/downloads:ro
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777
@@ -49,6 +50,39 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+  web:
+    image: note:local
+    container_name: note-web
+    command: ['node', 'web.mjs']
+    restart: 'no'
+    init: true
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 8788
+      WEB_ROOT: /app/web
+      DOWNLOADS_ROOT: /downloads
+    networks:
+      web:
+        aliases: [note-web]
+    volumes:
+      - ./releases:/downloads:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: '2'
 networks:
+  private:
+    driver: bridge
   web:
     external: true

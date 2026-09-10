@@ -2,7 +2,7 @@ import { getDb } from './database';
 import { MAX_IMAGE_BYTES, type Attachment } from './model';
 import { validImage } from './image-format';
 
-export async function saveImage(file: File): Promise<Attachment> {
+async function prepareImage(file: File): Promise<Attachment> {
   if (
     !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type)
   )
@@ -26,8 +26,20 @@ export async function saveImage(file: File): Promise<Attachment> {
     uploaded: false,
     createdAt: new Date().toISOString(),
   };
-  await getDb().attachments.add(attachment);
   return attachment;
+}
+
+export async function saveImages(
+  files: File[],
+  db = getDb(),
+): Promise<Attachment[]> {
+  if (files.length > 10)
+    throw new Error('이미지는 한 번에 10개까지 첨부할 수 있어요.');
+  const attachments = await Promise.all(files.map(prepareImage));
+  await db.transaction('rw', db.attachments, () =>
+    db.attachments.bulkAdd(attachments),
+  );
+  return attachments;
 }
 
 export function imageMarkdown(attachment: Attachment) {

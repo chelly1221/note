@@ -9,13 +9,21 @@ const { app } = await buildApp({
   nasRoot: required('NAS_ROOT'),
   stateDir: required('STATE_DIR'),
   storageId: required('NAS_STORAGE_ID'),
-  accessKey: required('APP_ACCESS_KEY'),
+  accessKey: process.env.APP_ACCESS_KEY,
+  tailscaleLogins:
+    process.env.AUTH_MODE === 'tailscale'
+      ? required('TAILSCALE_ALLOWED_LOGINS')
+          .split(',')
+          .map((login) => login.trim())
+          .filter(Boolean)
+      : undefined,
   requireMount: process.env.REQUIRE_NAS_MOUNT !== 'false',
   secureCookies: process.env.SECURE_COOKIES !== 'false',
   origins: required('APP_ORIGINS')
     .split(',')
     .map((origin) => origin.trim()),
   webRoot: process.env.WEB_ROOT,
+  downloadsRoot: process.env.DOWNLOADS_ROOT,
   logger: true,
 });
 await app.listen({

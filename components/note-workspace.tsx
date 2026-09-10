@@ -27,6 +27,8 @@ import {
   Upload,
   X,
   LoaderCircle,
+  MoreHorizontal,
+  Pencil,
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { Button } from '@/components/ui/button';
@@ -53,6 +55,16 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { NoteEditor } from '@/components/note-editor';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog';
 import { SettingsDialog } from '@/components/settings-dialog';
 import { NoticeHost, notify } from '@/components/notice';
 import {
@@ -61,6 +73,8 @@ import {
   getSetting,
   initializeDatabase,
   setSetting,
+  renameLocalFolder,
+  deleteLocalFolder,
 } from '@/lib/database';
 import {
   getServerSyncSnapshot,
@@ -75,6 +89,7 @@ import { importMarkdown } from '@/lib/export';
 import { registerOfflineShell } from '@/lib/pwa';
 import { finishEditing } from '@/lib/edit-session';
 import { WorkspaceBoundary } from '@/components/workspace-boundary';
+import { registerNoteTools } from '@/lib/webmcp';
 
 type Filter = {
   type: 'all' | 'starred' | 'trash' | 'folder' | 'tag';
@@ -120,6 +135,9 @@ function WorkspaceContent() {
   const [folderDialog, setFolderDialog] = useState(false);
   const [folderName, setFolderName] = useState('');
   const [folderError, setFolderError] = useState('');
+  const [editingFolder, setEditingFolder] = useState<string | null>(null);
+  const [removingFolder, setRemovingFolder] = useState<string | null>(null);
+  const [folderBusy, setFolderBusy] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const { setOpenMobile, setOpen } = useSidebar();
@@ -193,7 +211,7 @@ function WorkspaceContent() {
     setQuery('');
     setMobileEditor(false);
     setOpenMobile(false);
-    const first = notes
+    const first = (await getDb().notes.toArray())
       .filter((note) => matches(note, next, ''))
       .sort(
         (a, b) =>
@@ -225,19 +243,58 @@ function WorkspaceContent() {
     setFocus(value);
     setOpen(!value);
   };
+  const onToolCreated = useEffectEvent(async (id: string) => {
+    setFilter({ type: 'all' });
+    setQuery('');
+    await select(id);
+  });
+  useEffect(() => {
+    if (!ready) return;
+    return registerNoteTools((id) => onToolCreated(id));
+  }, [ready]);
   async function addFolder(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = folderName.trim();
     if (!name) return;
-    if (folders.includes(name)) {
+    if (folders.includes(name) && name !== editingFolder) {
       setFolderError('같은 이름의 폴더가 있어요.');
       return;
     }
-    await setSetting('folders', [...storedFolders, name]);
-    setFolderDialog(false);
-    setFolderName('');
-    await choose({ type: 'folder', value: name });
-    notify('폴더를 만들었어요.');
+    if (folderBusy || !(await finishEditing())) return;
+    setFolderBusy(true);
+    try {
+      if (editingFolder) await renameLocalFolder(editingFolder, name);
+      else await setSetting('folders', [...storedFolders, name]);
+      setFolderDialog(false);
+      setFolderName('');
+      await choose({ type: 'folder', value: name });
+      await refreshPending();
+      notify(editingFolder ? '폴더 이름을 바꿨어요.' : '폴더를 만들었어요.');
+    } catch (error) {
+      setFolderError(
+        error instanceof Error ? error.message : '폴더를 저장하지 못했어요.',
+      );
+    } finally {
+      setFolderBusy(false);
+    }
+  }
+  async function removeFolder() {
+    if (!removingFolder || folderBusy || !(await finishEditing())) return;
+    setFolderBusy(true);
+    try {
+      await deleteLocalFolder(removingFolder);
+      if (filter.type === 'folder' && filter.value === removingFolder)
+        await choose({ type: 'folder', value: DEFAULT_FOLDER });
+      setRemovingFolder(null);
+      await refreshPending();
+      notify('기록을 기본 노트로 옮기고 폴더를 삭제했어요.');
+    } catch (error) {
+      setFolderError(
+        error instanceof Error ? error.message : '폴더를 삭제하지 못했어요.',
+      );
+    } finally {
+      setFolderBusy(false);
+    }
   }
   async function importFiles(files: File[]) {
     try {
@@ -313,7 +370,15 @@ function WorkspaceContent() {
     return () => window.removeEventListener('note-conflict', handler);
   }, []);
   const handleKeyboard = useEffectEvent((event: KeyboardEvent) => {
-    if (event.isComposing) return;
+    if (
+      event.isComposing ||
+      event.defaultPrevented ||
+      (event.target instanceof Element &&
+        event.target.closest(
+          '[data-slot="dialog-content"], [data-slot="alert-dialog-content"]',
+        ))
+    )
+      return;
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
       event.preventDefault();
       setFocus(false);
@@ -342,7 +407,9 @@ function WorkspaceContent() {
   }, []);
   const handleNativeBack = useEffectEvent(async () => {
     if (!(await finishEditing())) return;
-    if (settingsOpen) setSettingsOpen(false);
+    if (folderBusy) return;
+    if (removingFolder) setRemovingFolder(null);
+    else if (settingsOpen) setSettingsOpen(false);
     else if (folderDialog) setFolderDialog(false);
     else if (focus) setFocusMode(false);
     else if (mobileEditor) setMobileEditor(false);
@@ -438,6 +505,8 @@ function WorkspaceContent() {
               title="새 폴더"
               onClick={() => {
                 setFolderError('');
+                setEditingFolder(null);
+                setFolderName('');
                 setFolderDialog(true);
               }}
             >
@@ -446,18 +515,57 @@ function WorkspaceContent() {
           </div>
           <nav aria-label="폴더">
             {folders.map((folder) => (
-              <Button
-                key={folder}
-                variant="ghost"
-                className={`nav-item ${filter.type === 'folder' && filter.value === folder ? 'selected' : ''}`}
-                onClick={() => choose({ type: 'folder', value: folder })}
-              >
-                <Folder />
-                <span className="nav-folder-name">{folder}</span>
-                <span>
-                  {normal.filter((note) => note.folder === folder).length}
-                </span>
-              </Button>
+              <div key={folder} className="folder-row">
+                <Button
+                  variant="ghost"
+                  className={`nav-item ${filter.type === 'folder' && filter.value === folder ? 'selected' : ''}`}
+                  onClick={() => choose({ type: 'folder', value: folder })}
+                >
+                  <Folder />
+                  <span className="nav-folder-name">{folder}</span>
+                  <span>
+                    {normal.filter((note) => note.folder === folder).length}
+                  </span>
+                </Button>
+                {folder !== DEFAULT_FOLDER && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="folder-menu"
+                          aria-label={`${folder} 폴더 관리`}
+                        />
+                      }
+                    >
+                      <MoreHorizontal size={16} />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setEditingFolder(folder);
+                          setFolderName(folder);
+                          setFolderError('');
+                          setFolderDialog(true);
+                        }}
+                      >
+                        <Pencil />
+                        이름 바꾸기
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setFolderError('');
+                          setRemovingFolder(folder);
+                        }}
+                      >
+                        <Trash2 />
+                        폴더 삭제
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
             ))}
           </nav>
           <div className="nav-section-label">태그</div>
@@ -758,11 +866,22 @@ function WorkspaceContent() {
         </section>
       </main>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
-      <Dialog open={folderDialog} onOpenChange={setFolderDialog}>
+      <Dialog
+        open={folderDialog}
+        onOpenChange={(open) => {
+          if (!folderBusy) setFolderDialog(open);
+        }}
+      >
         <DialogContent className="properties-dialog">
           <DialogHeader>
-            <DialogTitle>새 폴더</DialogTitle>
-            <DialogDescription>어떤 기록을 담을 공간인가요?</DialogDescription>
+            <DialogTitle>
+              {editingFolder ? '폴더 이름 바꾸기' : '새 폴더'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingFolder
+                ? '이 폴더에 담긴 노트도 새 이름으로 정리됩니다.'
+                : '어떤 기록을 담을 공간인가요?'}
+            </DialogDescription>
           </DialogHeader>
           <form
             className="settings-form"
@@ -786,13 +905,50 @@ function WorkspaceContent() {
                 {folderError}
               </p>
             )}
-            <Button type="submit">
-              <FolderPlus />
-              폴더 만들기
+            <Button type="submit" disabled={folderBusy}>
+              {folderBusy ? (
+                <LoaderCircle className="spin" />
+              ) : editingFolder ? (
+                <Pencil />
+              ) : (
+                <FolderPlus />
+              )}
+              {editingFolder ? '이름 바꾸기' : '폴더 만들기'}
             </Button>
           </form>
         </DialogContent>
       </Dialog>
+      <AlertDialog
+        open={Boolean(removingFolder)}
+        onOpenChange={(open) => {
+          if (!open && !folderBusy) setRemovingFolder(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>폴더를 삭제할까요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              ‘{removingFolder}’에 담긴 기록을 기본 노트로 옮기고 폴더를
+              삭제합니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {folderError && (
+            <p className="form-error" role="alert">
+              {folderError}
+            </p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={folderBusy}>취소</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={folderBusy}
+              onClick={() => void removeFolder()}
+            >
+              {folderBusy ? <LoaderCircle className="spin" /> : <Trash2 />}폴더
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <NoticeHost />
     </>
   );

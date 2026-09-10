@@ -7,6 +7,8 @@ import {
   createLocalNote,
   initializeDatabase,
   migratePreviousDatabase,
+  renameLocalFolder,
+  deleteLocalFolder,
   preserveConflict,
   updateLocalNote,
 } from '../lib/database';
@@ -20,6 +22,35 @@ afterEach(async () => {
   await db.delete();
 });
 describe('local-first editing', () => {
+  it('renames a folder atomically while preserving note identity, contents and trash state', async () => {
+    const note = await createLocalNote(
+      { folder: '프로젝트', title: '기록', content: '본문', revision: 3 },
+      db,
+    );
+    const deleted = await createLocalNote(
+      { folder: '프로젝트', deletedAt: new Date().toISOString() },
+      db,
+    );
+    await db.settings.put({ key: 'folders', value: ['프로젝트'] });
+    expect(await renameLocalFolder('프로젝트', '작업', db)).toBe(2);
+    expect(await db.notes.get(note.id)).toMatchObject({
+      id: note.id,
+      folder: '작업',
+      content: '본문',
+      revision: 3,
+      dirty: true,
+      syncState: 1,
+    });
+    expect((await db.notes.get(deleted.id))?.deletedAt).toBe(deleted.deletedAt);
+    expect((await db.notes.get(note.id))?.mutationId).not.toBe(note.mutationId);
+    await expect(renameLocalFolder('작업', '기본 노트', db)).rejects.toThrow(
+      '같은 이름',
+    );
+    expect((await db.notes.get(note.id))?.folder).toBe('작업');
+    expect(await deleteLocalFolder('작업', db)).toBe(2);
+    expect((await db.notes.get(note.id))?.folder).toBe('기본 노트');
+    expect((await db.settings.get('folders'))?.value).toEqual([]);
+  });
   it('moves offline edits, images and settings before deleting an earlier database', async () => {
     const previous = new NoteDatabase(`previous-${crypto.randomUUID()}`);
     await initializeDatabase(previous);

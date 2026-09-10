@@ -5,6 +5,7 @@ server/*
 !server/package-lock.json
 !dist-api/
 !dist-api/server.mjs
+!dist-api/web.mjs
 !dist/
 dist/*
 !dist/client/

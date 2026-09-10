@@ -62,8 +62,7 @@ export function SettingsDialog({
     getSyncSnapshot,
     getServerSyncSnapshot,
   );
-  const [url, setUrl] = useState('');
-  const [key, setKey] = useState('');
+  const [login, setLogin] = useState('');
   const [device, setDevice] = useState('');
   const [connected, setConnected] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -76,8 +75,7 @@ export function SettingsDialog({
     if (!open) return;
     void connectionSettings().then((value) => {
       setError('');
-      setKey('');
-      setUrl(value.serverUrl);
+      setLogin(value.login ?? '');
       setDevice(value.deviceName);
       setConnected(value.connected);
     });
@@ -90,22 +88,27 @@ export function SettingsDialog({
     setBusy(true);
     setError('');
     try {
-      await connectServer(url, key, device);
-      setKey('');
+      await connectServer(device);
+      setLogin((await connectionSettings()).login ?? '');
       setConnected(true);
-      notify('서버에 연결했어요. 노트를 동기화합니다.');
+      notify('Tailscale로 연결했어요. 노트를 동기화합니다.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '연결하지 못했어요.');
+      setError(
+        err instanceof Error && err.name !== 'TypeError'
+          ? err.message
+          : '이 기기의 Tailscale을 켜고 본인 계정으로 로그인한 뒤 다시 연결해 주세요.',
+      );
     } finally {
       setBusy(false);
     }
   }
   async function disconnect() {
+    if (!(await finishEditing())) return;
     setBusy(true);
     try {
       await disconnectServer();
       setConnected(false);
-      notify('서버 연결을 해제했어요. 기기의 노트는 유지됩니다.');
+      window.dispatchEvent(new Event('note-lock'));
     } catch (err) {
       setError(String(err));
     } finally {
@@ -170,7 +173,7 @@ export function SettingsDialog({
                     : sync.state === 'offline' || sync.state === 'error'
                       ? '서버 연결 대기'
                       : connected
-                        ? '서버와 연결됨'
+                        ? 'Tailscale로 연결됨'
                         : '기기에만 저장 중'}
                 </strong>
                 <p>{sync.message}</p>
@@ -196,18 +199,21 @@ export function SettingsDialog({
               </p>
             )}
             <form onSubmit={connect} className="settings-form">
-              <label>
-                서버 주소
-                <input
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  type="url"
-                  placeholder="https://note.3chan.kr"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                />
-                <small>서버에서 웹을 열었다면 비워둘 수 있어요.</small>
-              </label>
+              <div className="settings-section">
+                <h3>Tailscale 계정으로 연결</h3>
+                <p>
+                  이 기기에서 Tailscale에 로그인하고 연결을 켜 주세요. 본인
+                  계정을 확인한 뒤 노트를 동기화해요.
+                </p>
+                {connected && login && <small>연결 계정: {login}</small>}
+                <a
+                  href="https://tailscale.com/download"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Tailscale 설치 안내
+                </a>
+              </div>
               <label>
                 기기 이름
                 <input
@@ -218,26 +224,10 @@ export function SettingsDialog({
                   required
                 />
               </label>
-              <label>
-                연결 키
-                <input
-                  value={key}
-                  onChange={(e) => setKey(e.target.value)}
-                  type="password"
-                  autoComplete="off"
-                  placeholder={
-                    connected
-                      ? '다시 연결하려면 키를 입력하세요'
-                      : '서버의 연결 키'
-                  }
-                  required
-                  maxLength={512}
-                />
-              </label>
               <div className="settings-button-row">
                 <Button type="submit" disabled={busy}>
                   {busy ? <LoaderCircle className="spin" /> : <Link2 />}
-                  {connected ? '다시 연결' : '서버 연결'}
+                  {connected ? 'Tailscale 연결 확인' : 'Tailscale로 연결'}
                 </Button>
                 {connected && (
                   <Button
@@ -246,14 +236,14 @@ export function SettingsDialog({
                     onClick={() => void disconnect()}
                     disabled={busy}
                   >
-                    연결 해제
+                    잠그기
                   </Button>
                 )}
               </div>
             </form>
             <p className="settings-hint">
               <ShieldCheck size={14} />
-              노트는 기기에 먼저 저장하고, 서버를 통해 NAS에 동기화해요.
+              입력 즉시 기기에 저장하고, Tailscale을 통해서만 NAS에 동기화해요.
             </p>
           </TabsContent>
           <TabsContent value="data">
@@ -322,6 +312,24 @@ export function SettingsDialog({
             </div>
           </TabsContent>
           <TabsContent value="appearance">
+            {!Capacitor.isNativePlatform() && (
+              <section className="settings-section">
+                <h3>안드로이드 앱</h3>
+                <p>휴대폰에서도 같은 노트를 이어서 작성하세요.</p>
+                <Button
+                  variant="outline"
+                  render={
+                    <a
+                      href={`https://note.3chan.kr/downloads/note-${APP_VERSION}.apk`}
+                      aria-label="앱 설치 파일 받기"
+                      download
+                    />
+                  }
+                >
+                  <Download size={16} /> 앱 설치 파일 받기
+                </Button>
+              </section>
+            )}
             <div className="settings-section">
               <h3>앱과 오프라인 사용</h3>
               <p>

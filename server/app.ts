@@ -2,15 +2,13 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
-import fastifyStatic from '@fastify/static';
+import { registerPublicWeb } from './public-web.ts';
 import {
   createHash,
   createHmac,
   randomBytes,
   timingSafeEqual,
 } from 'node:crypto';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { z, ZodError } from 'zod';
 import { idSchema, mutationSchema } from '../lib/validation.ts';
 import { MAX_IMAGE_BYTES, APP_VERSION } from '../lib/model.ts';
@@ -18,10 +16,13 @@ import { validImage } from '../lib/image-format.ts';
 import { NoteStorage, StorageError, type StorageConfig } from './storage.ts';
 
 export interface AppConfig extends StorageConfig {
-  accessKey: string;
+  accessKey?: string;
+  // Only enable behind Tailscale Serve on an isolated loopback listener.
+  tailscaleLogins?: string[];
   origins: string[];
   secureCookies: boolean;
   webRoot?: string;
+  downloadsRoot?: string;
   logger?: boolean;
 }
 
@@ -45,7 +46,13 @@ function deadline<T>(promise: Promise<T>, timeoutMs = 8000): Promise<T> {
 }
 
 export async function buildApp(config: AppConfig) {
-  if (config.accessKey.length < 24)
+  const tailscaleOnly = config.tailscaleLogins !== undefined;
+  const allowedLogins = new Set(
+    config.tailscaleLogins?.map((login) => login.toLowerCase()),
+  );
+  if (tailscaleOnly && !allowedLogins.size)
+    throw new Error('At least one Tailscale user is required.');
+  if (!tailscaleOnly && (!config.accessKey || config.accessKey.length < 24))
     throw new Error('NOTE access key must contain at least 24 characters.');
   const app = Fastify({
     logger: config.logger ?? false,
@@ -58,7 +65,9 @@ export async function buildApp(config: AppConfig) {
   const secret = createHash('sha256')
     .update(`note-session:${config.accessKey}`)
     .digest();
-  const keyDigest = createHash('sha256').update(config.accessKey).digest();
+  const keyDigest = createHash('sha256')
+    .update(config.accessKey ?? '')
+    .digest();
   const origins = new Set(config.origins);
   let initError = false;
   try {
@@ -133,7 +142,8 @@ export async function buildApp(config: AppConfig) {
       'Permissions-Policy',
       'camera=(), microphone=(), geolocation=()',
     );
-    if (!request.url.startsWith('/api/')) return;
+    const route = request.routeOptions.url ?? request.url.split('?')[0];
+    if (!route.startsWith('/api/')) return;
     reply.header('Cache-Control', 'no-store');
     const origin = request.headers.origin;
     if (origin && !origins.has(origin))
@@ -143,22 +153,33 @@ export async function buildApp(config: AppConfig) {
       });
     if (
       request.method === 'OPTIONS' ||
-      ['/api/health', '/api/auth/login'].includes(request.url.split('?')[0])
+      route === '/api/health' ||
+      (!tailscaleOnly && route === '/api/auth/login')
     )
       return;
+    if (tailscaleOnly) {
+      const login = request.headers['tailscale-user-login'];
+      if (typeof login !== 'string' || !allowedLogins.has(login.toLowerCase()))
+        return reply.code(401).send({
+          code: 'tailscale_required',
+          message: '본인의 Tailscale 계정으로 연결해 주세요.',
+        });
+      if (route === '/api/auth/login')
+        return reply.code(404).send({
+          code: 'key_login_disabled',
+          message: 'Tailscale 연결을 사용해 주세요.',
+        });
+    }
     const bearer = request.headers.authorization?.startsWith('Bearer ')
       ? request.headers.authorization.slice(7)
       : undefined;
     const session = readSession(bearer ?? request.cookies.note_session);
-    if (!session)
+    if (!tailscaleOnly && !session)
       return reply.code(401).send({
         code: 'auth_required',
         message: '서버 연결 키를 입력해 주세요.',
       });
-    if (
-      request.method !== 'GET' &&
-      request.headers['x-note-request'] !== '1'
-    )
+    if (request.method !== 'GET' && request.headers['x-note-request'] !== '1')
       return reply.code(403).send({
         code: 'request_denied',
         message: '요청을 확인할 수 없습니다.',
@@ -204,6 +225,16 @@ export async function buildApp(config: AppConfig) {
         .code(503)
         .send({ app: 'note', version: APP_VERSION, storageReady: false });
     }
+  });
+  app.get('/api/auth/identity', async (request, reply) => {
+    if (!tailscaleOnly)
+      return reply.code(404).send({ code: 'tailscale_unconfigured' });
+    await deadline(storage.initialize());
+    return {
+      login: request.headers['tailscale-user-login'],
+      storageId: config.storageId,
+      auth: 'tailscale',
+    };
   });
   app.post(
     '/api/auth/login',
@@ -316,52 +347,7 @@ export async function buildApp(config: AppConfig) {
     return bytes;
   });
 
-  if (config.webRoot) {
-    await fs.access(path.join(config.webRoot, 'index.html'));
-    const scriptHashes = new Set<string>();
-    for (const name of (await fs.readdir(config.webRoot)).filter((name) =>
-      name.endsWith('.html'),
-    )) {
-      const html = await fs.readFile(path.join(config.webRoot, name), 'utf8');
-      for (const match of html.matchAll(
-        /<script\b([^>]*)>([\s\S]*?)<\/script>/gi,
-      )) {
-        if (!/\bsrc\s*=/.test(match[1]))
-          scriptHashes.add(
-            `'sha256-${createHash('sha256').update(match[2]).digest('base64')}'`,
-          );
-      }
-    }
-    const contentPolicy = [
-      "default-src 'self'",
-      `script-src 'self' ${[...scriptHashes].join(' ')}`,
-      "script-src-attr 'none'",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' blob: data:",
-      "font-src 'self'",
-      "connect-src 'self' https:",
-      "worker-src 'self'",
-      "object-src 'none'",
-      "base-uri 'none'",
-      "frame-ancestors 'none'",
-      "form-action 'self'",
-    ].join('; ');
-    await app.register(fastifyStatic, {
-      root: path.resolve(config.webRoot),
-      index: ['index.html'],
-      setHeaders(response, filename) {
-        response.header('Content-Security-Policy', contentPolicy);
-        response.header(
-          'Cache-Control',
-          filename.endsWith('.html') || filename.endsWith('sw.js')
-            ? 'no-cache'
-            : filename.includes(`${path.sep}_next${path.sep}static${path.sep}`)
-              ? 'public, max-age=31536000, immutable'
-              : 'public, max-age=3600',
-        );
-      },
-    });
-  }
+  await registerPublicWeb(app, config);
   app.addHook('onClose', async () => storage.close());
   return { app, storage };
 }

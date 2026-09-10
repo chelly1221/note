@@ -78,3 +78,13 @@
 - 서버 이전 이미지 note:previous 확보. 최신 배포 service restart 완료 확인 예정.
 - 로컬 dev session28484 유지. NAS SSH71412 필요시 사용. 서버 SSH는 BatchMode 가능.
 - 목표16:39 KST까지 계속 개선할 것. 현재 약1시간23분 경과, 2시간37분 남음.
+
+## 14:50 KST 이름·무채색 테마 반영
+- 웹/Android/서버 프로토콜/서비스/파일명/내부 패키지를 노트 및 note로 변경. Android 패키지 kr.threechan.note.
+- 서버 /srv/note, systemd note.service, NAS /mnt/note/note로 실제 이전. 원본 및 이미지 20개 파일 해시가 이전 전후 일치.
+- 브라우저 IndexedDB 이름 이전 기능과 검증 추가. 기존 3개 노트 및 휴지통, 이미지, 설정 유지 확인 후 NAS 재연결 완료.
+- 전체 배경/패널/선택/탭/태그/텍스트를 무채색으로 변경. 로고와 작은 포인트 선에 그라데이션 사용. 실제 웹 반영 및 화면 확인.
+- 서명 APK 이름 note-0.1.0.apk, 인증서 Note로 변경. APK v2 서명 검증 통과. native runtime 3개 검증 통과.
+- Vitest 58개 통과. typecheck/lint 통과. 사용하지 않는 scaffold 컴포넌트 48개 제거 및 의존성 정리, npm audit 0건.
+- 최신 로컬에 앱 다운로드 라우트와 설정 동선 추가(배포 전), WebMCP 검색/생성 도구 추가(실제 도구 계약 검증 전).
+- 남은 개선: 모바일 편집/폴더 관리, WebMCP 계약 검증, APK 다운로드 배포/실제 설치, 최종 빌드 및 운영 문서 보완.

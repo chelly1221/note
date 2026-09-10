@@ -85,11 +85,15 @@ const build = spawnSync(
 );
 if (build.status !== 0) process.exit(build.status || 1);
 const releases = path.join(root, 'releases');
+const version = JSON.parse(
+  fs.readFileSync(path.join(root, 'package.json'), 'utf8'),
+).version;
+const releaseName = `note-${version}.apk`;
 fs.mkdirSync(releases, { recursive: true });
 fs.copyFileSync(
   path.join(root, 'android/app/build/outputs/apk/release/app-release.apk'),
-  path.join(releases, 'note-0.1.0.apk'),
+  path.join(releases, releaseName),
 );
 console.log(
-  'Signed Android APK: releases/note-0.1.0.apk. Keep .local signing files for future updates.',
+  `Signed Android APK: releases/${releaseName}. Keep .local signing files for future updates.`,
 );

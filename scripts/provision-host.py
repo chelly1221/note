@@ -1,7 +1,8 @@
 """Idempotent host setup; do not print any authentication credentials."""
 import os
 from pathlib import Path
-import secrets
+import json
+import subprocess
 import shutil
 
 base = Path('/srv/note')
@@ -14,10 +15,12 @@ state.mkdir(mode=0o700, exist_ok=True)
 os.chown(state, 1001, 1001)
 env = base / '.env'
 if not env.exists():
-    key = secrets.token_urlsafe(32)
+    status = json.loads(subprocess.check_output(['tailscale', 'status', '--json']))
+    login = status['User'][str(status['Self']['UserID'])]['LoginName']
     contents = '\n'.join([
-        f'APP_ACCESS_KEY={key}',
-        'APP_ORIGINS=https://note.3chan.kr,https://localhost',
+        'AUTH_MODE=tailscale',
+        f'TAILSCALE_ALLOWED_LOGINS={login}',
+        'APP_ORIGINS=https://note.3chan.kr,https://localhost,https://audax-vm.tail62313c.ts.net:8443',
         f'NAS_STORAGE_ID={storage_id}',
         '',
     ])
@@ -25,7 +28,7 @@ if not env.exists():
     os.chmod(env, 0o600)
     os.chown(env, 1001, 1001)
     connection = base / 'connection.txt'
-    connection.write_text('노트 서버 연결 정보\n\n서버 주소: https://note.3chan.kr\n연결 키: ' + key + '\n\n연결 키는 나의 기기에만 입력하세요. NAS 비밀번호와는 별개의 앱 전용 키입니다.\n', encoding='utf-8')
+    connection.write_text('노트 연결 안내\n\n웹: https://note.3chan.kr\nTailscale에 로그인하고 연결을 켠 뒤 노트의 Tailscale로 연결을 누르세요.\n별도 연결 키는 사용하지 않습니다.\n', encoding='utf-8')
     os.chmod(connection, 0o600)
     os.chown(connection, 1001, 1001)
 fstab = Path('/etc/fstab')

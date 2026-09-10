@@ -31,6 +31,27 @@ const mutation = () => ({
 });
 
 describe('NAS-backed storage', () => {
+  it('preserves imported modification dates, then timestamps later edits on the server', async () => {
+    const input = mutation();
+    input.note.createdAt = '2024-02-03T04:05:06.000Z';
+    input.note.updatedAt = '2025-06-07T08:09:10.000Z';
+    const imported = await store.mutate(input);
+    expect(imported.note.createdAt).toBe(input.note.createdAt);
+    expect(imported.note.updatedAt).toBe(input.note.updatedAt);
+    const edited = await store.mutate({
+      mutationId: randomUUID(),
+      note: { ...imported.note, content: '가져온 뒤 수정' },
+    });
+    expect(edited.note.createdAt).toBe(input.note.createdAt);
+    expect(Date.parse(edited.note.updatedAt)).toBeGreaterThan(
+      Date.parse(input.note.updatedAt),
+    );
+    const future = mutation();
+    future.note.updatedAt = '2099-01-01T00:00:00.000Z';
+    expect(
+      Date.parse((await store.mutate(future)).note.updatedAt),
+    ).toBeLessThan(Date.parse(future.note.updatedAt));
+  });
   it('refuses to append after the NAS has been restored behind the local index', async () => {
     await store.mutate(mutation());
     const journal = path.join(config.nasRoot, 'journal');

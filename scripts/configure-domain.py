@@ -15,7 +15,7 @@ connection.write_text(connection.read_text().replace('https://audax-vm.tail62313
 
 config = Path('/srv/proxy/Caddyfile')
 before = config.read_text()
-site = '\n# Note personal notes\nnote.3chan.kr {\n\tencode zstd gzip\n\treverse_proxy note-app:8787\n}\n'
+site = '\n# Note personal notes\nnote.3chan.kr {\n\tencode zstd gzip\n\treverse_proxy note-web:8788\n}\n'
 if 'note.3chan.kr {' not in before:
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     shutil.copy2(config, config.with_name(f'Caddyfile.bak.{stamp}-note'))

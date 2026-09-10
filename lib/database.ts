@@ -6,6 +6,7 @@ import {
   newNote,
   normalizeTags,
   MAX_NOTE_LENGTH,
+  DEFAULT_FOLDER,
   type Attachment,
   type EditableNote,
   type LocalNote,
@@ -56,16 +57,21 @@ export async function setSetting(key: string, value: unknown, db = getDb()) {
 }
 
 const initializing = new WeakMap<NoteDatabase, Promise<void>>();
-export function initializeDatabase(db = getDb()) {
+export function initializeDatabase(
+  db = getDb(),
+  options: { seedWelcome?: boolean } = {},
+) {
   let operation = initializing.get(db);
   if (!operation) {
-    operation = initializeOnce(db).finally(() => initializing.delete(db));
+    operation = initializeOnce(db, options.seedWelcome !== false).finally(() =>
+      initializing.delete(db),
+    );
     initializing.set(db, operation);
   }
   return operation;
 }
 
-async function initializeOnce(db: NoteDatabase) {
+async function initializeOnce(db: NoteDatabase, seedWelcome: boolean) {
   await db.open();
   if (db.name === 'note') await migratePreviousDatabase(db);
   await db.transaction('rw', db.notes, db.settings, async () => {
@@ -109,7 +115,7 @@ async function initializeOnce(db: NoteDatabase) {
     } catch {
       /* Leave the original preview untouched if it cannot be imported. */
     }
-    if (!imported && !(await db.notes.count())) {
+    if (seedWelcome && !imported && !(await db.notes.count())) {
       await db.notes.put(
         newNote({
           title: '노트 사용 안내',
@@ -336,5 +342,66 @@ export async function applyRemote(remote: NoteDocument, db = getDb()) {
         mutationId: crypto.randomUUID(),
       });
     return null;
+  });
+}
+
+export async function renameLocalFolder(
+  source: string,
+  target: string,
+  db = getDb(),
+) {
+  const name = target.trim();
+  if (!name || name.length > 80)
+    throw new Error('폴더 이름은 1~80자로 입력해 주세요.');
+  if (source === DEFAULT_FOLDER)
+    throw new Error('기본 노트 폴더는 이름을 바꿀 수 없어요.');
+  if (source === name) return 0;
+  return moveFolder(source, name, false, db);
+}
+
+export async function deleteLocalFolder(source: string, db = getDb()) {
+  if (source === DEFAULT_FOLDER)
+    throw new Error('기본 노트 폴더는 삭제할 수 없어요.');
+  return moveFolder(source, DEFAULT_FOLDER, true, db);
+}
+
+async function moveFolder(
+  source: string,
+  target: string,
+  merging: boolean,
+  db: NoteDatabase,
+) {
+  return db.transaction('rw', db.notes, db.settings, async () => {
+    const folders = await getSetting<string[]>('folders', [], db);
+    if (
+      !merging &&
+      (target === DEFAULT_FOLDER ||
+        folders.includes(target) ||
+        (await db.notes.where('folder').equals(target).count()))
+    )
+      throw new Error('같은 이름의 폴더가 있어요.');
+    const notes = await db.notes.where('folder').equals(source).toArray();
+    const timestamp = new Date().toISOString();
+    await db.notes.bulkPut(
+      notes.map((note) => ({
+        ...note,
+        folder: target,
+        dirty: true,
+        syncState: 1,
+        mutationId: crypto.randomUUID(),
+        updatedAt: timestamp,
+      })),
+    );
+    await setSetting(
+      'folders',
+      [
+        ...new Set([
+          ...folders.filter((folder) => folder !== source),
+          ...(merging ? [] : [target]),
+        ]),
+      ],
+      db,
+    );
+    return notes.length;
   });
 }

@@ -8,7 +8,7 @@ import {
   applyRemote,
 } from './database';
 import {
-  normalizeServerUrl,
+  TAILSCALE_SERVER_URL,
   toDocument,
   type ConnectionSettings,
   type LocalNote,
@@ -16,6 +16,7 @@ import {
   type SyncSnapshot,
 } from './model';
 import { documentSchema } from './validation';
+import { createSyncScheduler } from './sync-scheduler';
 
 const initial: SyncSnapshot = {
   state: 'unconfigured',
@@ -28,9 +29,9 @@ let snapshot: SyncSnapshot = initial;
 const listeners = new Set<() => void>();
 let running = false;
 let interval: ReturnType<typeof setInterval> | undefined;
-let followup: ReturnType<typeof setTimeout> | undefined;
-let nativeToken: string | undefined;
-let nativeTokenLoaded = false;
+const scheduler = createSyncScheduler(() => {
+  void syncNow({ automatic: true });
+});
 let connectionGeneration = 0;
 let consecutiveFailures = 0;
 let nextAutomaticAttempt = 0;
@@ -58,30 +59,16 @@ export class ApiError extends Error {
   }
 }
 
-async function tokenStore() {
-  // Android uses an app-owned Keystore plugin. No secret is stored in browser storage.
-  const { registerPlugin } = await import('@capacitor/core');
-  return registerPlugin<{
-    get(): Promise<{ value?: string }>;
-    set(options: { value: string }): Promise<void>;
-    remove(): Promise<void>;
-  }>('NoteCredentials');
-}
-async function getNativeToken() {
-  if (!Capacitor.isNativePlatform()) return undefined;
-  if (!nativeTokenLoaded) {
-    nativeToken = (await (await tokenStore()).get()).value;
-    nativeTokenLoaded = true;
-  }
-  return nativeToken;
-}
-
 export async function connectionSettings(): Promise<ConnectionSettings> {
-  return getSetting('connection', {
-    serverUrl: Capacitor.isNativePlatform() ? 'https://note.3chan.kr' : '',
+  const settings = await getSetting<ConnectionSettings>('connection', {
+    serverUrl: TAILSCALE_SERVER_URL,
     deviceName: Capacitor.isNativePlatform() ? 'Android' : '웹 브라우저',
     connected: false,
   });
+  // Existing installations keep their notes and sync cursor while switching transport.
+  if (!settings.serverUrl || settings.serverUrl === 'https://note.3chan.kr')
+    return { ...settings, serverUrl: TAILSCALE_SERVER_URL };
+  return settings;
 }
 
 export async function apiRequest<T>(
@@ -90,16 +77,13 @@ export async function apiRequest<T>(
   config?: ConnectionSettings,
 ): Promise<T> {
   const settings = config ?? (await connectionSettings());
-  const token = await getNativeToken();
   const headers = new Headers(options.headers);
   headers.set('X-Note-Request', '1');
   if (Capacitor.isNativePlatform()) headers.set('X-Note-Client', 'native');
-  if (token && pathname !== '/api/auth/login')
-    headers.set('Authorization', `Bearer ${token}`);
   const response = await fetch(`${settings.serverUrl}${pathname}`, {
     ...options,
     headers,
-    credentials: 'include',
+    credentials: 'omit',
     signal: options.signal ?? AbortSignal.timeout(15000),
   });
   if (!response.ok) {
@@ -119,47 +103,34 @@ export async function apiRequest<T>(
     : (response.blob() as Promise<T>);
 }
 
-export async function connectServer(
-  serverUrl: string,
-  key: string,
-  deviceName: string,
-) {
+export async function connectServer(deviceName: string) {
   const current = await connectionSettings();
   const next: ConnectionSettings = {
-    serverUrl: normalizeServerUrl(serverUrl),
+    serverUrl: TAILSCALE_SERVER_URL,
     deviceName: deviceName.trim() || '내 기기',
     connected: true,
   };
-  if (!next.serverUrl && Capacitor.isNativePlatform())
-    throw new Error('서버 주소를 입력해 주세요.');
   const result = await apiRequest<{
-    connected: boolean;
     storageId: string;
-    token?: string;
-  }>(
-    '/api/auth/login',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key, deviceName: next.deviceName }),
-    },
-    next,
-  );
+    login: string;
+    auth: string;
+  }>('/api/auth/identity', {}, next);
+  if (result.auth !== 'tailscale' || typeof result.login !== 'string')
+    throw new Error('Tailscale 사용자 확인에 실패했어요.');
   // A different vault must never inherit revision numbers or the previous cursor.
   if (current.storageId && current.storageId !== result.storageId)
     throw new Error(
       '이 기기는 다른 저장소와 연결되어 있어요. 기존 노트를 내보낸 뒤 별도의 앱 공간에서 연결해 주세요.',
     );
-  if (result.token) {
-    await (await tokenStore()).set({ value: result.token });
-    nativeToken = result.token;
-    nativeTokenLoaded = true;
-  }
-  await setSetting('connection', { ...next, storageId: result.storageId });
+  await setSetting('connection', {
+    ...next,
+    storageId: result.storageId,
+    login: result.login,
+  });
   connectionGeneration++;
   consecutiveFailures = 0;
   nextAutomaticAttempt = 0;
-  publish({ state: 'idle', message: '서버에 연결됨' });
+  publish({ state: 'idle', message: 'Tailscale로 연결됨' });
   requestSync();
 }
 
@@ -172,14 +143,6 @@ export async function disconnectServer() {
     message: '이 기기에 저장',
     nasAvailable: null,
   });
-  try {
-    await apiRequest('/api/auth/logout', { method: 'POST' }, settings);
-  } catch {
-    /* Local disconnect remains possible offline. */
-  }
-  if (Capacitor.isNativePlatform()) await (await tokenStore()).remove();
-  nativeToken = undefined;
-  nativeTokenLoaded = true;
 }
 
 function reportConflict(originalId: string, copy: LocalNote | null) {
@@ -358,7 +321,7 @@ async function performSync() {
     if (error instanceof ApiError && error.status === 401)
       publish({
         state: 'auth-required',
-        message: '서버에 다시 연결해 주세요.',
+        message: 'Tailscale 계정 연결을 확인해 주세요.',
         nasAvailable: null,
       });
     else if (error instanceof ApiError && error.code.startsWith('nas_'))
@@ -373,7 +336,7 @@ async function performSync() {
         message:
           error instanceof Error && error.name !== 'TypeError'
             ? error.message
-            : '서버 연결을 기다리는 중 · 기기에 저장',
+            : 'Tailscale 연결 대기 · 기기에 저장',
         nasAvailable: null,
       });
   }
@@ -404,10 +367,7 @@ export async function syncNow(options: { automatic?: boolean } = {}) {
 }
 
 export function requestSync() {
-  clearTimeout(followup);
-  followup = setTimeout(() => {
-    void syncNow({ automatic: true });
-  }, 1200);
+  scheduler.request();
 }
 export async function refreshPending() {
   const pending = await getDb().notes.where('syncState').equals(1).count();
@@ -439,7 +399,7 @@ export async function startSync() {
   return () => {
     clearInterval(interval);
     interval = undefined;
-    clearTimeout(followup);
+    scheduler.cancel();
     window.removeEventListener('online', online);
     window.removeEventListener('offline', offline);
     window.removeEventListener('focus', requestSync);

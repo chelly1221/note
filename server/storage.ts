@@ -304,7 +304,12 @@ export class NoteStorage {
         ...mutation.note,
         createdAt: current?.createdAt ?? mutation.note.createdAt,
         revision: (current?.revision ?? 0) + 1,
-        updatedAt: new Date().toISOString(),
+        // Imported and offline-created notes keep their original editing time.
+        // Later revisions use the server clock; revisions drive synchronization.
+        updatedAt:
+          !current && Date.parse(mutation.note.updatedAt) <= Date.now()
+            ? mutation.note.updatedAt
+            : new Date().toISOString(),
       };
       const entry: JournalEntry = {
         schema: 1,

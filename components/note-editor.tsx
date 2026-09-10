@@ -58,8 +58,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { notify } from '@/components/notice';
-import { createLocalNote } from '@/lib/database';
-import { imageMarkdown, saveImage } from '@/lib/attachments';
+import { createLocalNote, getDb } from '@/lib/database';
+import { imageMarkdown, saveImages } from '@/lib/attachments';
 import { exportMarkdown } from '@/lib/export';
 import {
   apiRequest,
@@ -70,6 +70,7 @@ import {
 } from '@/lib/sync';
 import {
   MAX_NOTE_LENGTH,
+  attachmentIds,
   normalizeTags,
   type EditableNote,
   type LocalNote,
@@ -127,6 +128,7 @@ export function NoteEditor({
   const titleInput = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const uploadInProgress = useRef(false);
   const sync = useSyncExternalStore(
     subscribeSync,
     getSyncSnapshot,
@@ -177,9 +179,12 @@ export function NoteEditor({
         while (saveOperations.current.size)
           await Promise.allSettled(saveOperations.current);
         if (saveErrorRef.current) {
-          notify('먼저 현재 글을 다시 저장하거나 파일로 보관해 주세요.', {
-            error: true,
-          });
+          notify(
+            '자동 저장 오류를 확인하거나 현재 글을 파일로 보관해 주세요.',
+            {
+              error: true,
+            },
+          );
           return false;
         }
         return true;
@@ -188,7 +193,7 @@ export function NoteEditor({
   );
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (pendingSaves.current || saveError) {
+      if (saveOperations.current.size || saveError) {
         event.preventDefault();
       }
     };
@@ -253,7 +258,7 @@ export function NoteEditor({
     }
   }
   function insert(before: string, after = '', placeholder = '') {
-    if (draft.deletedAt) return;
+    if (current.current.deletedAt) return false;
     const input = area.current;
     const start = input?.selectionStart ?? current.current.content.length;
     const end = input?.selectionEnd ?? start;
@@ -266,7 +271,7 @@ export function NoteEditor({
       current.current.content.slice(end);
     if (content.length > MAX_NOTE_LENGTH) {
       notify('노트는 100만 자까지 작성할 수 있어요.', { error: true });
-      return;
+      return false;
     }
     setMode('write');
     void change({ content });
@@ -277,6 +282,7 @@ export function NoteEditor({
         start + before.length + selection.length,
       );
     });
+    return true;
   }
   function prefix(value: string) {
     const input = area.current;
@@ -288,35 +294,57 @@ export function NoteEditor({
     );
     const stop = end === -1 ? current.current.content.length : end;
     const selected = current.current.content.slice(start, stop);
-    void change({
-      content:
-        current.current.content.slice(0, start) +
-        selected
-          .split('\n')
-          .map((line) => value + line)
-          .join('\n') +
-        current.current.content.slice(stop),
-    });
+    const content =
+      current.current.content.slice(0, start) +
+      selected
+        .split('\n')
+        .map((line) => value + line)
+        .join('\n') +
+      current.current.content.slice(stop);
+    if (content.length > MAX_NOTE_LENGTH) {
+      notify('노트는 100만 자까지 작성할 수 있어요.', { error: true });
+      return;
+    }
+    void change({ content });
     setMode('write');
     requestAnimationFrame(() => area.current?.focus());
   }
   async function attach(files: File[]) {
+    if (!files.length || uploadInProgress.current || current.current.deletedAt)
+      return;
+    if (attachmentIds(current.current.content).length + files.length > 100) {
+      notify('한 노트에는 이미지를 100개까지 첨부할 수 있어요.', {
+        error: true,
+      });
+      return;
+    }
+    uploadInProgress.current = true;
     setUploading(true);
-    try {
-      const markdown = [];
-      for (const file of files.slice(0, 10)) {
-        const image = await saveImage(file);
-        markdown.push(imageMarkdown(image));
+    const operation = (async () => {
+      try {
+        const images = await saveImages(files);
+        const markdown = images.map(imageMarkdown);
+        if (insert(`\n${markdown.join('\n\n')}\n`))
+          notify(`${markdown.length}개의 이미지를 첨부했어요.`);
+        else
+          await getDb().attachments.bulkDelete(images.map((image) => image.id));
+      } catch (error) {
+        notify(
+          error instanceof Error
+            ? error.message
+            : '이미지를 첨부하지 못했어요.',
+          { error: true },
+        );
+      } finally {
+        uploadInProgress.current = false;
+        setUploading(false);
       }
-      insert(`\n${markdown.join('\n\n')}\n`);
-      notify(`${markdown.length}개의 이미지를 첨부했어요.`);
-    } catch (error) {
-      notify(
-        error instanceof Error ? error.message : '이미지를 첨부하지 못했어요.',
-        { error: true },
-      );
+    })();
+    saveOperations.current.add(operation);
+    try {
+      await operation;
     } finally {
-      setUploading(false);
+      saveOperations.current.delete(operation);
     }
   }
   function keyboard(event: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -518,7 +546,7 @@ export function NoteEditor({
               })
             }
           >
-            다시 저장
+            다시 시도
           </Button>
           <Button
             variant="ghost"
