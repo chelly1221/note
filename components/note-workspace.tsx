@@ -66,6 +66,7 @@ import {
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 import { SettingsDialog } from '@/components/settings-dialog';
+import { AppDownloadLink } from '@/components/app-download-link';
 import { NoticeHost, notify } from '@/components/notice';
 import {
   createLocalNote,
@@ -596,6 +597,7 @@ function WorkspaceContent() {
         </SidebarContent>
         <SidebarFooter className="sidebar-bottom">
           <div>
+            <AppDownloadLink className="nav-item app-download-link" />
             <Button
               variant="ghost"
               className="nav-item"

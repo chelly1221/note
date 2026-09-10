@@ -2,14 +2,16 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   ArrowRight,
+  Check,
   LoaderCircle,
   LockKeyhole,
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { AppDownloadLink } from '@/components/app-download-link';
 import { getDb, initializeDatabase } from '@/lib/database';
-import { connectionSettings, connectServer, syncNow } from '@/lib/sync';
+import { openNotebook, type ConnectionStage } from '@/lib/connect-flow';
 import { registerOfflineShell } from '@/lib/pwa';
 import {
   getTailscaleSnapshot,
@@ -23,6 +25,7 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [stage, setStage] = useState<ConnectionStage>('account');
   const attempt = useRef<Promise<void> | null>(null);
   const tunnel = useSyncExternalStore(
     subscribeTailscale,
@@ -36,9 +39,7 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
     setError('');
     const work = (async () => {
       try {
-        const connection = await connectionSettings();
-        await connectServer(connection.deviceName);
-        await syncNow();
+        await openNotebook(setStage);
         setAllowed(true);
       } catch (failure) {
         setError(
@@ -62,8 +63,8 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
       .then(async () => {
         if (cancelled) return;
         setReady(true);
-        const connection = await connectionSettings();
-        if (connection.connected && !cancelled) await enter();
+        // Prepare the account link immediately; only the user opens and approves it.
+        if (!cancelled) await enter();
       })
       .catch(() => {
         if (!cancelled)
@@ -71,7 +72,11 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
             '기기 저장소를 열지 못했어요. 브라우저의 저장 공간 설정을 확인해 주세요.',
           );
       });
-    const lock = () => setAllowed(false);
+    const lock = () => {
+      setAllowed(false);
+      setStage('account');
+      setError('');
+    };
     window.addEventListener('note-lock', lock);
     return () => {
       cancelled = true;
@@ -80,6 +85,26 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   if (allowed) return children;
+  const needsApproval =
+    stage === 'account' && tunnel.state === 'NeedsMachineAuth';
+  const loginReady =
+    busy &&
+    stage === 'account' &&
+    tunnel.state === 'NeedsLogin' &&
+    Boolean(tunnel.loginUrl);
+  const activeStep = stage === 'account' ? 0 : stage === 'server' ? 1 : 2;
+  const stepLabels = ['Tailscale 계정 인증', '노트 서버 연결', '노트 열기'];
+  const guidance = needsApproval
+    ? 'Tailscale 관리자 화면에서 이 기기를 승인해 주세요. 승인되면 자동으로 다음 단계로 넘어갑니다.'
+    : loginReady
+      ? '아래 버튼에서 로그인하고 이 기기를 승인해 주세요. 인증을 마치면 이 화면으로 돌아오세요.'
+      : stage === 'server'
+        ? '인증한 계정으로 노트 서버에 접근할 수 있는지 확인하고 있어요.'
+        : stage === 'opening'
+          ? '저장된 기록을 확인하고 노트를 열고 있어요.'
+          : busy
+            ? '저장된 인증 정보를 확인하고 있어요. 처음 사용하는 기기라면 계정 인증 버튼이 나타납니다.'
+            : '계정 인증부터 차례대로 안내해 드릴게요. 이미 인증한 기기는 자동으로 연결됩니다.';
   return (
     <main className="access-page">
       <section className="access-card" aria-label="Tailscale 연결">
@@ -109,35 +134,91 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
           <LockKeyhole size={24} />
         </div>
         <h1>
-          나의 기록으로
-          <br />
-          들어가요.
+          {needsApproval
+            ? '기기 승인이 필요해요.'
+            : stage === 'account'
+              ? '계정 인증부터 시작해요.'
+              : stage === 'server'
+                ? '서버에 연결하고 있어요.'
+                : '노트를 열고 있어요.'}
         </h1>
-        <p className="access-description">
-          Tailscale로 연결된 나만의 공간.
-          <br />
-          생각은 가볍게, 기록은 안전하게.
-        </p>
-        <Button
-          className="access-connect"
-          onClick={() => { if (tunnel.state === 'Error') location.reload(); else void enter(); }}
-          disabled={!ready || busy}
-        >
-          {busy ? <LoaderCircle className="spin" /> : <ShieldCheck />}
-          {busy ? '보안 연결 중' : 'Tailscale로 로그인'}
-          {!busy && <ArrowRight />}
-        </Button>
-        {tunnel.loginUrl && (
+        <ol className="connection-steps" aria-label="노트 시작 순서">
+          {stepLabels.map((label, index) => (
+            <li
+              key={label}
+              className={
+                index === activeStep
+                  ? 'current'
+                  : index < activeStep
+                    ? 'complete'
+                    : ''
+              }
+              aria-current={index === activeStep ? 'step' : undefined}
+            >
+              <span className="connection-step-number" aria-hidden="true">
+                {index < activeStep ? <Check size={14} /> : index + 1}
+              </span>
+              {label}
+              {index < activeStep && <span className="sr-only">완료</span>}
+            </li>
+          ))}
+        </ol>
+        <output className="access-description" aria-live="polite">
+          {guidance}
+        </output>
+        {loginReady ? (
           <a
-            className="access-login"
+            className="access-login account-action"
             href={tunnel.loginUrl}
             target="_blank"
             rel="noopener noreferrer"
           >
-            Tailscale 계정 인증하기 <span aria-hidden="true">↗</span>
+            <ShieldCheck size={18} aria-hidden="true" /> Tailscale 계정 인증하기{' '}
+            <ArrowRight size={18} aria-hidden="true" />
           </a>
+        ) : needsApproval && busy ? (
+          <a
+            className="access-login account-action"
+            href="https://console.tailscale.com/admin/machines"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Tailscale에서 기기 승인하기{' '}
+            <ArrowRight size={18} aria-hidden="true" />
+          </a>
+        ) : (
+          <Button
+            className="access-connect"
+            onClick={() => {
+              if (tunnel.state === 'Error') location.reload();
+              else void enter();
+            }}
+            disabled={!ready || busy}
+          >
+            {busy || !ready ? (
+              <LoaderCircle className="spin" />
+            ) : (
+              <ShieldCheck />
+            )}
+            {!ready
+              ? '시작 준비 중'
+              : busy
+                ? stage === 'account'
+                  ? '계정 인증 준비 중'
+                  : stage === 'server'
+                    ? '서버 연결 확인 중'
+                    : '노트 여는 중'
+                : error
+                  ? '다시 시도'
+                  : '노트 연결 시작'}
+          </Button>
         )}
-        {busy && <output className="access-help">{tunnel.message}</output>}
+        {loginReady && (
+          <p className="access-help">
+            새 창에서 인증합니다. 완료 여부는 자동으로 확인하므로 다시 로그인할
+            필요가 없어요.
+          </p>
+        )}
         {error && (
           <p className="access-error" role="alert">
             {error}
@@ -148,6 +229,7 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
             variant="ghost"
             onClick={() => {
               logoutTailscale();
+              setStage('account');
               setError('');
             }}
           >
@@ -155,8 +237,9 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
           </Button>
         )}
         <p className="access-help">
-          별도 앱 설치 없이, 노트 안에서 안전하게 연결돼요.
+          Tailscale 앱을 따로 설치하지 않아도 됩니다.
         </p>
+        <AppDownloadLink className="access-download app-download-link" />
         <div className="access-footer">
           <span className="gradient-stroke" />
           입력 즉시 자동 저장 · NAS 동기화

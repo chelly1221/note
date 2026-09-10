@@ -35,7 +35,7 @@ import { exportNotebook, importNotebook } from '@/lib/export';
 import { getSetting, setSetting } from '@/lib/database';
 import { logoutTailscale } from '@/lib/tailscale';
 import { notify } from '@/components/notice';
-import { APP_VERSION } from '@/lib/model';
+import { ANDROID_DOWNLOAD_URL, APP_VERSION } from '@/lib/model';
 import { finishEditing } from '@/lib/edit-session';
 import {
   applyOfflineUpdate,
@@ -325,7 +325,7 @@ export function SettingsDialog({
                   variant="outline"
                   render={
                     <a
-                      href={`https://note.3chan.kr/downloads/note-${APP_VERSION}.apk`}
+                      href={ANDROID_DOWNLOAD_URL}
                       aria-label="앱 설치 파일 받기"
                       download
                     />
