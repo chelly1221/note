@@ -1,5 +1,11 @@
 # 노트 검증 기록
 
+## 0.2.2 — Android 시스템 영역 테마
+
+Capacitor `SystemBars.style`을 `DARK`로 지정하고 Android 창 배경을 `#111111`로 고정했습니다. 시작 화면에도 같은 배경과 밝은 시스템 아이콘을 적용합니다. Android 16 에뮬레이터가 밝은 모드(`Night mode: no`)인 상태에서 상단 상태 표시줄과 하단 제스처 영역이 어둡고 시간·배터리·제스처 아이콘이 밝게 표시되는 것을 확인했습니다.
+
+TypeScript, 린트, 웹·서버·Android 릴리스 빌드와 기존 설치본의 업데이트 설치를 확인했습니다. APK SHA-256: `af5822a7415aa591ceee30b0e5c6109d773199500952f8a6bdf40eb384b133c6`.
+
 ## 0.2.1 — 웹·Android 내장 Tailscale
 
 2026-09-10 Tailscale Go/WASM을 웹과 Android 앱에 포함했습니다. 일반 fetch와 EventSource 대신 내장 WireGuard 연결로 JSON, 이미지 및 변경 알림을 전송합니다.

@@ -10,6 +10,7 @@ const config: CapacitorConfig = {
     webContentsDebuggingEnabled: false,
   },
   plugins: {
+    SystemBars: { style: 'DARK' },
     Keyboard: { resize: 'body', resizeOnFullScreen: true },
     SplashScreen: { launchShowDuration: 0 },
   },

@@ -4,7 +4,7 @@
 
 - 웹: https://note.3chan.kr
 - Android 패키지: `kr.threechan.note`
-- 앱 설치 파일: `releases/note-0.2.1.apk`
+- 앱 설치 파일: `releases/note-0.2.2.apk`
 - 서버: `3chan@100.89.61.28`, `/srv/note`, `note.service`
 - NAS: ASUSTOR `100.75.89.101`, 공유 `Note` (Volume2), 데이터 `/volume2/Note/note`
 
