@@ -1,0 +1,11 @@
+*
+!server/
+server/*
+!server/package.json
+!server/package-lock.json
+!dist-api/
+!dist-api/server.mjs
+!dist/
+dist/*
+!dist/client/
+!dist/client/**

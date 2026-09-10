@@ -1,0 +1,19 @@
+[Unit]
+Description=Note private note app
+Requires=docker.service
+Wants=network-online.target tailscaled.service
+After=network-online.target tailscaled.service docker.service
+RequiresMountsFor=/mnt/note
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/note
+ExecStart=/usr/bin/docker compose up --abort-on-container-exit --exit-code-from app
+ExecStop=/usr/bin/docker compose down --timeout 25
+Restart=always
+RestartSec=15
+TimeoutStartSec=120
+TimeoutStopSec=45
+
+[Install]
+WantedBy=multi-user.target
