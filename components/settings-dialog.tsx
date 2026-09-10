@@ -33,7 +33,8 @@ import {
 } from '@/lib/sync';
 import { exportNotebook, importNotebook } from '@/lib/export';
 import { getSetting, setSetting } from '@/lib/database';
-import { logoutTailscale } from '@/lib/tailscale';
+import { logoutTailscale, getTailscaleSnapshot, getServerTailscaleSnapshot, subscribeTailscale } from '@/lib/tailscale';
+import { openAuthBrowser } from '@/lib/auth-browser';
 import { notify } from '@/components/notice';
 import { ANDROID_DOWNLOAD_URL, APP_VERSION } from '@/lib/model';
 import { finishEditing } from '@/lib/edit-session';
@@ -53,6 +54,8 @@ export function SettingsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const tunnel = useSyncExternalStore(subscribeTailscale, getTailscaleSnapshot, getServerTailscaleSnapshot);
+  const loginUrl = tunnel.loginUrl || (tunnel.state === 'NeedsMachineAuth' ? 'https://console.tailscale.com/admin/machines' : '');
   const offline = useSyncExternalStore(
     subscribeOffline,
     getOfflineSnapshot,
@@ -194,6 +197,9 @@ export function SettingsDialog({
                 </Button>
               )}
             </div>
+            {loginUrl && <a className="access-login" href={loginUrl} target="_blank" rel="noopener noreferrer" onClick={event => {
+              if (Capacitor.isNativePlatform()) { event.preventDefault(); void openAuthBrowser(loginUrl).catch(err => setError(String(err))); }
+            }}>동기화를 위해 Tailscale 다시 인증</a>}
             {sync.lastSyncedAt && (
               <p className="settings-hint">
                 마지막 동기화:{' '}

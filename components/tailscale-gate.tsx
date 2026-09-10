@@ -14,6 +14,7 @@ import { Capacitor } from '@capacitor/core';
 import { openAuthBrowser } from '@/lib/auth-browser';
 import { getDb, initializeDatabase } from '@/lib/database';
 import { openNotebook, type ConnectionStage } from '@/lib/connect-flow';
+import { canOpenNotebookLocally } from '@/lib/local-session';
 import { registerOfflineShell } from '@/lib/pwa';
 import {
   getTailscaleSnapshot,
@@ -41,6 +42,7 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
     });
   }
   const attempt = useRef<Promise<void> | null>(null);
+  const generation = useRef(0);
   const tunnel = useSyncExternalStore(
     subscribeTailscale,
     getTailscaleSnapshot,
@@ -50,20 +52,20 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
   function enter() {
     if (attempt.current) return attempt.current;
     setBusy(true);
+    const current = generation.current;
     setError('');
     const work = (async () => {
       try {
-        await openNotebook(setStage);
-        setAllowed(true);
+        await openNotebook(setStage, () => current === generation.current);
+        if (current === generation.current) setAllowed(true);
       } catch (failure) {
-        setError(
+        if (current === generation.current) setError(
           failure instanceof Error && failure.name !== 'TypeError'
             ? failure.message
             : '내장 연결을 열지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
         );
       } finally {
-        setBusy(false);
-        attempt.current = null;
+        if (current === generation.current) { setBusy(false); attempt.current = null; }
       }
     })();
     attempt.current = work;
@@ -75,18 +77,22 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
     void registerOfflineShell();
     void initializeDatabase(getDb(), { seedWelcome: false })
       .then(async () => {
+        const local = await canOpenNotebookLocally();
         if (cancelled) return;
+        if (local) setAllowed(true);
         setReady(true);
-        // Prepare the account link immediately; only the user opens and approves it.
+        // Existing notebooks are usable while the connection starts in the background.
         if (!cancelled) await enter();
       })
       .catch(() => {
+        if (!cancelled) setReady(true);
         if (!cancelled)
           setError(
             '기기 저장소를 열지 못했어요. 브라우저의 저장 공간 설정을 확인해 주세요.',
           );
       });
     const lock = () => {
+      generation.current++; attempt.current = null; setBusy(false);
       setAllowed(false);
       setStage('account');
       setError('');
@@ -99,6 +105,7 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   if (allowed) return children;
+  if (!ready) return <main className="access-page"><output className="access-description">기기에 저장된 노트를 여는 중…</output></main>;
   const needsApproval =
     stage === 'account' && tunnel.state === 'NeedsMachineAuth';
   const loginReady =

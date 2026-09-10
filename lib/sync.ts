@@ -110,6 +110,7 @@ export async function apiRequest<T>(
 }
 
 export async function connectServer(deviceName: string) {
+  const generation = connectionGeneration;
   await ensureTailscale();
   const current = await connectionSettings();
   const next: ConnectionSettings = {
@@ -122,6 +123,7 @@ export async function connectServer(deviceName: string) {
     login: string;
     auth: string;
   }>('/api/auth/identity', {}, next);
+  if (generation !== connectionGeneration) throw new Error('이전 연결 요청이 취소됐어요.');
   if (result.auth !== 'tailscale' || typeof result.login !== 'string')
     throw new Error('Tailscale 사용자 확인에 실패했어요.');
   // A different vault must never inherit revision numbers or the previous cursor.

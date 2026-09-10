@@ -1,5 +1,23 @@
 # 노트 검증 기록
 
+## 0.2.9 — 저장된 노트 먼저 열기
+
+이전에 연결했고 사용자가 잠그거나 로그아웃하지 않은 기기는 IndexedDB의 노트를 먼저 엽니다. Tailscale 연결·서버 확인·동기화는 뒤에서 진행하며, 재인증은 설정 → 동기화에서 처리합니다. 연결을 기다리는 중 잠근 경우에는 오래된 연결 요청이 노트 화면을 다시 열지 않습니다.
+
+- 자동 테스트 87개, TypeScript·린트, 웹·서버 및 서명 Android 릴리스 빌드 통과. 로컬 연결 상태만으로 열기와 인증 대기 중 잠금 회귀 검사를 추가했습니다.
+- 별도의 Android 16 에뮬레이터에서 `OfflineStartupTest` 1개 통과. Wi-Fi·모바일 데이터와 WebView 네트워크를 차단하고 합성 노트를 저장한 뒤 Activity를 닫고 다시 열었습니다. 오프라인 상태에서 제목이 보이고 인증 화면이 나타나지 않았습니다. 실제 계정이나 운영 노트는 사용하지 않았습니다.
+- 기존 0.2.8과 동일한 서명 인증서, versionCode 14 / versionName 0.2.9 확인. APK SHA-256: `ac442edf708f7c19e1ff7aa2169ac4391ed447e81d13adec82c9381708e2150d`.
+- `note.service`를 통해 운영 웹·API를 배포하고 healthy·NAS storageReady를 확인했습니다. 공개 데이터 API는 404이고, 웹 HTML·서비스 워커·favicon과 내려받은 APK가 로컬 빌드와 일치합니다. 이전 이미지는 `note:before-local-first-0.2.9`, 이번 빌드 입력은 `/srv/note/build-local-first-0.2.9`에 보관했습니다.
+- 0.2.8의 Pretendard 글꼴 변경을 함께 보존했습니다. 저장소 스키마·사용자 자료의 변환은 없습니다. 앱 제거·데이터 삭제는 기기 자료를 지우며, 실제 휴대폰의 새 Tailscale 인증 전체 흐름은 이번 테스트에 포함하지 않았습니다.
+
+## 0.2.8 — 연락처 시리즈와 Pretendard 통일
+
+UI 기본 글꼴을 Pretendard Variable 1.3.9로 바꿨습니다. `public/fonts/PretendardVariable.woff2`와 OFL 라이선스를 웹 및 Android에 함께 포함해 외부 폰트 CDN 없이 오프라인에서도 같은 글꼴을 사용합니다. 연락처 프로젝트와 동일한 파일이며 SHA-256은 `9599f12fd42fc0bce1cd50b47a0c022e108d7aa64dd0d1bb0ed44f3282d900b4`입니다.
+
+TypeScript·린트·웹·서버·서명 Android 빌드를 통과했습니다. 기존 `note.service`에 배포한 뒤 서버 건강 상태와 NAS 연결을 확인했습니다. 공개 폰트 파일과 APK의 다운로드 해시가 로컬 파일과 일치합니다. 기존 검정·진회색 테마와 아이콘은 유지합니다.
+
+APK `note-0.2.8.apk`: SHA-256 `36436fd4588a28d3cc44f15729d7d68c12e93da30d2659ebdc32d9ab562ae126`. 배포 전 이미지는 `note:before-pretendard` 태그로 보관했습니다.
+
 ## 0.2.7 — 앱 안의 Tailscale 인증 창
 
 Android에서는 Tailscale 인증 링크를 앱 위의 어두운 Custom Tab으로 엽니다. 웹 브라우저의 일반 링크 동작은 유지합니다. 네이티브 플러그인은 공식 Tailscale 기기 인증 URL과 관리자 기기 목록만 받으며, 페이지에는 노트의 네이티브 브리지나 저장소를 노출하지 않습니다. Android 최소 지원 버전(API 24)은 유지했습니다.

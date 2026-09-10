@@ -13,6 +13,7 @@ vi.mock('../lib/sync', () => ({
   syncNow: mocks.sync,
 }));
 import { openNotebook } from '../lib/connect-flow';
+import { canOpenNotebookLocally } from '../lib/local-session';
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -20,6 +21,21 @@ beforeEach(() => {
 });
 
 describe('account-first connection', () => {
+  it('restores an unlocked local notebook without waiting for any network operation', async () => {
+    mocks.settings.mockResolvedValue({ connected: true, deviceName: 'Offline device' });
+    expect(await canOpenNotebookLocally()).toBe(true);
+    expect(mocks.authenticate).not.toHaveBeenCalled();
+    expect(mocks.sync).not.toHaveBeenCalled();
+    mocks.settings.mockResolvedValue({ connected: false });
+    expect(await canOpenNotebookLocally()).toBe(false);
+  });
+  it('does not reconnect or sync after the user locks during pending authentication', async () => {
+    const account = Promise.withResolvers<void>(); let active = true;
+    mocks.authenticate.mockReturnValue(account.promise);
+    const pending = openNotebook(vi.fn(), () => active);
+    active = false; account.resolve(); await pending;
+    expect(mocks.connect).not.toHaveBeenCalled(); expect(mocks.sync).not.toHaveBeenCalled();
+  });
   it('waits for account approval before contacting the note server, then waits before opening notes', async () => {
     const account = Promise.withResolvers<void>();
     const identity = Promise.withResolvers<void>();
