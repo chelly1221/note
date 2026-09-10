@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111111">
+  <title>노트 웹 업데이트</title>
+  <link rel="icon" href="/favicon.svg?v=0.2.3" type="image/svg+xml">
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:28px;background:#111;color:#ededed;font:16px/1.7 system-ui,sans-serif}main{max-width:400px;width:100%}img{width:40px;height:40px}h1{font-size:30px;word-break:keep-all;line-height:1.4}p{color:#b5b5b5;word-break:keep-all}button{width:100%;min-height:52px;margin-top:16px;border:1px solid transparent;border-radius:10px;background:linear-gradient(#292929,#292929) padding-box,linear-gradient(120deg,#ad7bf4,#ea88bb,#f08370,#efa55f) border-box;color:#eee;font:600 15px system-ui;cursor:pointer}button:disabled{opacity:.65;cursor:wait}button:focus-visible,a:focus-visible{outline:2px solid #c5a1ef;outline-offset:4px}output{display:block;min-height:54px;margin-top:20px;color:#c6c6c6;font-size:14px}a{color:#bdbdbd;font-size:14px}
+  </style>
+  <script src="/update.js" defer></script>
+</head>
+<body><main>
+  <img src="/favicon.svg?v=0.2.3" alt="노트">
+  <h1>최신 웹 버전으로<br>다시 열어요.</h1>
+  <p>이전에 열린 노트 탭에서 입력을 마친 뒤 아래 버튼을 눌러 주세요. 노트와 Tailscale 인증 정보는 그대로 유지됩니다.</p>
+  <button id="update" type="button">최신 웹 버전 열기</button>
+  <output id="status" aria-live="polite">인터넷에 연결된 상태에서 진행해 주세요.</output>
+  <a href="/">노트로 돌아가기</a>
+</main></body>
+</html>

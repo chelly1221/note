@@ -52,6 +52,10 @@ Android 런타임 테스트의 OS 네트워크 검사는 내장 WASM 연결을 �
 
 ## 운영과 복구
 
+웹이 이전 화면에 머물면 `https://note.3chan.kr/update.html`에서 최신 웹을 열 수 있습니다. 이 과정은 노트나 Tailscale 저장 정보를 삭제하지 않습니다. 새 버전 안내는 로그인 전 화면에도 표시하며, 휴대폰에서 탭으로 돌아올 때 업데이트를 다시 확인합니다.
+
+웹 단독 배포 시 Android 설치 파일 버전은 유지합니다. 앱을 새로 배포할 때는 `android/app/build.gradle`의 `versionName`·`versionCode`와 `lib/model.ts`의 `ANDROID_VERSION`을 함께 갱신합니다. APK 파일명은 Android의 `versionName`에서 가져옵니다.
+
 배포 갱신, 이전 이미지로 되돌리기와 자료 복구 절차는 [운영 메모](docs/OPERATIONS.md)를 참고하세요.
 
 NAS는 SMB 3.1.1 암호화 연결로 `/mnt/note`에 마운트됩니다. 자격 증명은 서버 `/etc/note/nas.credentials`에 root 전용 권한으로 보관됩니다. 현재 추가 NAS 설정은 필요하지 않습니다.

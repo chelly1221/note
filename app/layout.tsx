@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { WebUpdateBanner } from '@/components/web-update-banner';
 export const metadata: Metadata = {
   title: '노트',
   description: '생각을 기록하고, 어디서든 이어 쓰는 나만의 노트.',
@@ -26,7 +27,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko" className="dark">
-      <body>{children}</body>
+      <body>
+        {children}
+        <WebUpdateBanner />
+      </body>
     </html>
   );
 }

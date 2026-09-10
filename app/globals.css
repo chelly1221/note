@@ -2006,3 +2006,32 @@ a:focus-visible {
   margin-top: 28px;
   color: #999999;
 }
+.web-update-banner {
+  position: fixed;
+  z-index: 100;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  width: min(380px, calc(100vw - 32px));
+  padding: 18px;
+  border: 1px solid #797979;
+  border-radius: 12px;
+  background: #242424;
+  color: #eeeeee;
+  box-shadow: 0 10px 40px #0006;
+}
+.web-update-banner strong {
+  font-size: 15px;
+}
+.web-update-banner p {
+  margin: 6px 0 14px;
+  color: #bbbbbb;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.web-update-actions {
+  display: flex;
+  gap: 8px;
+}
+.web-update-actions button {
+  min-height: 44px;
+}

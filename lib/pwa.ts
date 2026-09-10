@@ -36,9 +36,6 @@ export async function applyOfflineUpdate() {
 function offerUpdate() {
   if (!registration?.waiting || !navigator.serviceWorker.controller) return;
   publish({ updateAvailable: true });
-  notify('새 버전이 준비됐어요.', {
-    action: { label: '업데이트', run: () => void applyOfflineUpdate() },
-  });
 }
 export async function checkOfflineUpdate() {
   if (!registration) {
@@ -67,7 +64,9 @@ export async function registerOfflineShell() {
   }
   started = true;
   try {
-    registration = await navigator.serviceWorker.register('/sw.js');
+    registration = await navigator.serviceWorker.register('/sw.js', {
+      updateViaCache: 'none',
+    });
     offerUpdate();
     registration.addEventListener('updatefound', () => {
       const worker = registration?.installing;
@@ -75,6 +74,23 @@ export async function registerOfflineShell() {
         if (worker.state === 'installed') offerUpdate();
       });
     });
+    // Mobile browsers often keep a tab alive for days. Check on return as well.
+    let lastCheck = 0;
+    const checkOnReturn = () => {
+      if (
+        document.visibilityState === 'hidden' ||
+        Date.now() - lastCheck < 60_000
+      )
+        return;
+      lastCheck = Date.now();
+      void registration
+        ?.update()
+        .then(offerUpdate)
+        .catch(() => {});
+    };
+    document.addEventListener('visibilitychange', checkOnReturn);
+    window.addEventListener('online', checkOnReturn);
+    checkOnReturn();
     let refreshing = false;
     let controlled = Boolean(navigator.serviceWorker.controller);
     navigator.serviceWorker.addEventListener('controllerchange', () => {

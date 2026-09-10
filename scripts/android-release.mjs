@@ -85,9 +85,10 @@ const build = spawnSync(
 );
 if (build.status !== 0) process.exit(build.status || 1);
 const releases = path.join(root, 'releases');
-const version = JSON.parse(
-  fs.readFileSync(path.join(root, 'package.json'), 'utf8'),
-).version;
+const version = fs
+  .readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8')
+  .match(/versionName\s+"([\d.]+)"/)?.[1];
+if (!version) throw new Error('Android versionName is missing.');
 const releaseName = `note-${version}.apk`;
 fs.mkdirSync(releases, { recursive: true });
 fs.copyFileSync(
