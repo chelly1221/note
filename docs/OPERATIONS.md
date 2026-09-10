@@ -19,6 +19,7 @@ docker ps --filter name=note
 curl -fsS http://127.0.0.1:8787/api/health
 tailscale serve status
 findmnt /mnt/note
+python3 /srv/note/scripts/verify-isolation.py
 ```
 
 공개 `/api/status`는 404가 정상입니다. Tailscale이 연결된 본인 기기에서는 `https://audax-vm.tail62313c.ts.net:8443/api/auth/identity`가 Tailscale 인증 결과를 반환합니다.
