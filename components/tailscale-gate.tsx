@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   ArrowRight,
   LoaderCircle,
@@ -11,6 +11,12 @@ import { Button } from '@/components/ui/button';
 import { getDb, initializeDatabase } from '@/lib/database';
 import { connectionSettings, connectServer, syncNow } from '@/lib/sync';
 import { registerOfflineShell } from '@/lib/pwa';
+import {
+  getTailscaleSnapshot,
+  getServerTailscaleSnapshot,
+  subscribeTailscale,
+  logoutTailscale,
+} from '@/lib/tailscale';
 
 export function TailscaleGate({ children }: { children: React.ReactNode }) {
   const [allowed, setAllowed] = useState(false);
@@ -18,6 +24,11 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const attempt = useRef<Promise<void> | null>(null);
+  const tunnel = useSyncExternalStore(
+    subscribeTailscale,
+    getTailscaleSnapshot,
+    getServerTailscaleSnapshot,
+  );
 
   function enter() {
     if (attempt.current) return attempt.current;
@@ -33,7 +44,7 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
         setError(
           failure instanceof Error && failure.name !== 'TypeError'
             ? failure.message
-            : 'Tailscale 앱에 로그인하고 연결을 켜 주세요. 브라우저가 로컬 네트워크 접근을 요청하면 허용해 주세요.',
+            : '내장 연결을 열지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
         );
       } finally {
         setBusy(false);
@@ -109,28 +120,43 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
         </p>
         <Button
           className="access-connect"
-          onClick={() => void enter()}
+          onClick={() => { if (tunnel.state === 'Error') location.reload(); else void enter(); }}
           disabled={!ready || busy}
         >
           {busy ? <LoaderCircle className="spin" /> : <ShieldCheck />}
-          {busy ? 'Tailscale 확인 중' : 'Tailscale로 연결'}
+          {busy ? '보안 연결 중' : 'Tailscale로 로그인'}
           {!busy && <ArrowRight />}
         </Button>
+        {tunnel.loginUrl && (
+          <a
+            className="access-login"
+            href={tunnel.loginUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Tailscale 계정 인증하기 <span aria-hidden="true">↗</span>
+          </a>
+        )}
+        {busy && <output className="access-help">{tunnel.message}</output>}
         {error && (
           <p className="access-error" role="alert">
             {error}
           </p>
         )}
+        {error && tunnel.state === 'Running' && (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              logoutTailscale();
+              setError('');
+            }}
+          >
+            다른 계정으로 로그인
+          </Button>
+        )}
         <p className="access-help">
-          이 기기에서 Tailscale에 로그인하고 연결을 켜 주세요.
+          별도 앱 설치 없이, 노트 안에서 안전하게 연결돼요.
         </p>
-        <a
-          href="https://tailscale.com/download"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Tailscale 설치 안내 <span aria-hidden="true">↗</span>
-        </a>
         <div className="access-footer">
           <span className="gradient-stroke" />
           입력 즉시 자동 저장 · NAS 동기화

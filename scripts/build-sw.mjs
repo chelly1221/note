@@ -18,7 +18,11 @@ async function list(directory) {
   ).flat();
 }
 const files = (await list(root)).filter(
-  (file) => !file.endsWith('sw.js') && !file.endsWith('.map'),
+  (file) =>
+    !file.endsWith('sw.js') &&
+    !file.endsWith('.map') &&
+    !file.endsWith('.br') &&
+    !file.endsWith('.gz'),
 );
 const hash = createHash('sha256');
 for (const file of files.sort()) hash.update(await fs.readFile(file));
@@ -29,6 +33,6 @@ const assets = [
     .map((file) => '/' + path.relative(root, file).replaceAll('\\', '/'))
     .filter((url) => url !== '/index.html'),
 ];
-const worker = serviceWorkerSource(cache,assets);
+const worker = serviceWorkerSource(cache, assets);
 await fs.writeFile(path.join(root, 'sw.js'), worker);
 console.log(`Offline shell ready: ${assets.length} assets, ${cache}`);

@@ -4,7 +4,7 @@
 
 - 웹: https://note.3chan.kr
 - Android 패키지: `kr.threechan.note`
-- 앱 설치 파일: `releases/note-0.1.4.apk`
+- 앱 설치 파일: `releases/note-0.2.1.apk`
 - 서버: `3chan@100.89.61.28`, `/srv/note`, `note.service`
 - NAS: ASUSTOR `100.75.89.101`, 공유 `Note` (Volume2), 데이터 `/volume2/Note/note`
 
@@ -14,9 +14,9 @@
 
 제목·본문·체크리스트·태그는 별도 저장 버튼 없이 입력할 때마다 저장합니다. 네트워크 전송은 입력이 잠시 멈추면 묶어서 처리하며 계속 입력해도 최대 3초마다 시도합니다. 서버의 변경 알림을 받으면 다른 기기도 동기화하고, 알림 연결이 불안정하면 주기적으로 재확인합니다.
 
-PC와 휴대폰에서 Tailscale에 본인 계정으로 로그인하고 연결을 켜세요. 웹이나 앱의 **Tailscale로 연결**을 누르면 사용자 확인 후 노트 화면이 열립니다. 별도 앱 비밀번호나 연결 키는 사용하지 않습니다. 브라우저가 로컬 네트워크 접근 권한을 요청하면 허용하세요.
+웹과 Android 앱에 Tailscale 엔진이 내장되어 있습니다. **Tailscale로 로그인** → **Tailscale 계정 인증하기**에서 본인 계정으로 기기를 승인하면 노트 화면이 열립니다. 별도 Tailscale 앱, VPN 설정, 노트 비밀번호나 공용 연결 키는 필요하지 않습니다. 브라우저와 Android 앱은 각각 독립된 기기로 등록되며, 연결 정보는 해당 앱의 저장소에 보관합니다.
 
-설정 → 동기화 → 잠그기로 노트 화면을 닫을 수 있습니다. 앱을 다시 열 때에도 Tailscale 사용자 확인을 거칩니다. 이미 편집 중인 상태에서 연결이 끊기면 기기에 계속 자동 저장하고, 연결이 돌아올 때 동기화합니다.
+설정 → 동기화 → 잠그기로 노트 화면을 닫고, 계정 로그아웃으로 내장 연결의 인증을 해제할 수 있습니다. 앱을 다시 열면 저장된 연결 정보로 재접속하고 서버에서 사용자를 확인합니다. 이미 편집 중인 상태에서 연결이 끊기면 기기에 계속 자동 저장하고, 연결이 돌아올 때 동기화합니다.
 
 설정 → 내 기록에서 전체 백업과 복원을 할 수 있습니다. 복원은 기존 글을 덮어쓰지 않고 새 노트로 가져옵니다. 개별 내보내기는 이미지가 없으면 Markdown, 이미지가 있으면 글과 이미지가 들어 있는 ZIP입니다.
 
@@ -26,7 +26,7 @@ PC와 휴대폰에서 Tailscale에 본인 계정으로 로그인하고 연결을
 
 실제 검증 결과와 남은 기기 확인 범위는 [검증 기록](docs/VERIFICATION.md)에 정리했습니다.
 
-Node.js 22.23.2 이상을 사용합니다. `npm ci` 후 `npm run dev`로 http://localhost:3000 을 엽니다. 앱은 Tailscale 전용 주소를 사용합니다. 개발용 웹 연결을 허용하려면 서버의 `APP_ORIGINS`에 개발 origin을 명시적으로 추가하세요. 자동 테스트는 임시 데이터베이스와 모의 네트워크를 사용합니다.
+Node.js 22.23.2 이상을 사용합니다. `npm ci` 후 [내장 엔진 빌드 안내](networking/tailscale/README.md)에 따라 WASM을 만들고 `npm run dev`로 http://localhost:3000 을 엽니다. 노트 API는 브라우저의 직접 fetch 대신 WASM 내부의 Tailscale TCP 연결을 사용하므로 개발 origin을 운영 CORS에 추가할 필요가 없습니다. 자동 테스트는 임시 데이터베이스와 모의 네트워크를 사용합니다.
 
 ```sh
 npm run typecheck
@@ -48,7 +48,7 @@ node scripts/android-release.mjs
 
 `.local/note-release.jks`와 `.local/android-signing.json`을 안전하게 별도 보관하세요. 앱 업데이트에 필요하며 Git과 웹 배포 파일에 포함하지 않습니다. 아이콘은 `public/favicon.svg`를 수정하고 `node scripts/build-icons.mjs`로 생성합니다.
 
-Android의 전용 서버 인증 테스트에는 해당 Android 기기의 Tailscale 연결이 필요합니다. 현재 에뮬레이터에서는 APK 설치·번들 자원·공개 주소의 API 차단을 확인했고, Tailscale DNS가 없는 전용 인증 테스트는 건너뜁니다. Android 편집 화면의 직접 조작은 별도로 확인해야 합니다.
+Android 런타임 테스트의 OS 네트워크 검사는 내장 WASM 연결을 검증하지 않습니다. 실제 내장 연결은 별도 Tailscale 앱이 없는 `Note_Android_16` 에뮬레이터에서 사용자가 기기를 승인한 뒤 검증합니다. 자세한 결과는 검증 기록에 구분해 둡니다.
 
 ## 운영과 복구
 

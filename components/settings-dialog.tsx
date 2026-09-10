@@ -33,6 +33,7 @@ import {
 } from '@/lib/sync';
 import { exportNotebook, importNotebook } from '@/lib/export';
 import { getSetting, setSetting } from '@/lib/database';
+import { logoutTailscale } from '@/lib/tailscale';
 import { notify } from '@/components/notice';
 import { APP_VERSION } from '@/lib/model';
 import { finishEditing } from '@/lib/edit-session';
@@ -96,17 +97,18 @@ export function SettingsDialog({
       setError(
         err instanceof Error && err.name !== 'TypeError'
           ? err.message
-          : '이 기기의 Tailscale을 켜고 본인 계정으로 로그인한 뒤 다시 연결해 주세요.',
+          : '인터넷 연결을 확인한 뒤 다시 연결해 주세요.',
       );
     } finally {
       setBusy(false);
     }
   }
-  async function disconnect() {
+  async function disconnect(logout = false) {
     if (!(await finishEditing())) return;
     setBusy(true);
     try {
       await disconnectServer();
+      if (logout) logoutTailscale();
       setConnected(false);
       window.dispatchEvent(new Event('note-lock'));
     } catch (err) {
@@ -200,19 +202,12 @@ export function SettingsDialog({
             )}
             <form onSubmit={connect} className="settings-form">
               <div className="settings-section">
-                <h3>Tailscale 계정으로 연결</h3>
+                <h3>내장 Tailscale 연결</h3>
                 <p>
-                  이 기기에서 Tailscale에 로그인하고 연결을 켜 주세요. 본인
-                  계정을 확인한 뒤 노트를 동기화해요.
+                  별도 앱 없이 노트 안에서 암호화된 연결을 열어요. 본인 계정을
+                  확인한 뒤 NAS에 동기화해요.
                 </p>
                 {connected && login && <small>연결 계정: {login}</small>}
-                <a
-                  href="https://tailscale.com/download"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Tailscale 설치 안내
-                </a>
               </div>
               <label>
                 기기 이름
@@ -237,6 +232,16 @@ export function SettingsDialog({
                     disabled={busy}
                   >
                     잠그기
+                  </Button>
+                )}
+                {connected && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => void disconnect(true)}
+                    disabled={busy}
+                  >
+                    계정 로그아웃
                   </Button>
                 )}
               </div>

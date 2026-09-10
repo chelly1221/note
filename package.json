@@ -1,6 +1,6 @@
 {
   "name": "note",
-  "version": "0.1.4",
+  "version": "0.2.1",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -15,7 +15,8 @@
     "build:windows": "npx --yes --package=node@22.23.2 node node_modules/vinext/dist/cli.js build && node scripts/build-sw.mjs",
     "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit",
-    "android:sync": "cap sync android"
+    "android:sync": "cap sync android && node scripts/trim-android-assets.mjs",
+    "build:tailscale": "node scripts/build-tailscale.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

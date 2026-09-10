@@ -35,7 +35,7 @@ docker compose build
 sudo systemctl restart note.service
 ```
 
-이번 0.1.x 버전 안에서 직전 이미지로 되돌릴 때는 다음과 같이 실행합니다. NAS와 인덱스 파일은 삭제하지 않습니다.
+직전 이미지로 되돌릴 때는 다음과 같이 실행합니다. NAS와 인덱스 파일은 삭제하지 않습니다. 0.1.x로 되돌리면 별도 Tailscale 클라이언트가 다시 필요합니다.
 
 ```sh
 docker image tag note:previous note:local
@@ -43,6 +43,8 @@ sudo systemctl restart note.service
 ```
 
 웹의 기존 사용자는 설정 → 쓰기 환경 → 업데이트 확인 → 새 버전 적용으로 캐시된 화면을 갱신합니다. Android는 같은 서명으로 만든 더 높은 버전의 APK를 설치합니다. 이미 배포한 APK 파일은 덮어쓰지 않습니다.
+
+0.2.x부터 Tailscale 통신 엔진을 웹과 앱에 내장합니다. 초기 빌드에는 `npm run build:tailscale`이 필요하며 [엔진 빌드 안내](../networking/tailscale/README.md)를 참고합니다. 첫 인증은 기기별로 한 번 수행합니다. 내장 클라이언트 상태는 NAS가 아닌 각 origin의 IndexedDB에 저장합니다. 앱 업데이트나 서버 재배포로 이 저장소를 삭제하지 않습니다.
 
 ## 자료 복구
 

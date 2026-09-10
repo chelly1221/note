@@ -41,6 +41,8 @@ next-env.d.ts
 /dist-api/
 *.tsbuildinfo
 /releases/
+/public/tailscale/*/main.wasm*
+/public/tailscale/*/wasm_exec.js
 /android/local.properties
 *.keystore
 *.jks

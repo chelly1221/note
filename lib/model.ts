@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.1.4';
+export const APP_VERSION = '0.2.1';
 export const TAILSCALE_SERVER_URL = 'https://audax-vm.tail62313c.ts.net:8443';
 export const DEFAULT_FOLDER = '기본 노트';
 export const MAX_IMAGE_BYTES = 12 * 1024 * 1024;

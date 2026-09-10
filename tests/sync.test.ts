@@ -9,6 +9,12 @@ import { newNote, toDocument } from '../lib/model';
 vi.mock('@capacitor/core', () => ({
   Capacitor: { isNativePlatform: () => false },
 }));
+vi.mock('../lib/tailscale', () => ({
+  ensureTailscale: async () => {},
+  tailscaleFetch: (input: string, options: RequestInit) =>
+    fetch(input, options),
+  subscribeTailEvents: () => () => {},
+}));
 let root: string;
 let server: Awaited<ReturnType<typeof buildApp>>;
 let dbModule: typeof import('../lib/database');

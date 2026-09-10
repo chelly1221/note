@@ -1886,10 +1886,11 @@ a:focus-visible {
   font-size: 14px;
   border-radius: 11px;
 }
-.access-connect svg:last-child {
+.access-connect:not(:disabled) svg:last-child {
   margin-left: auto;
 }
 .access-help {
+  display: block;
   font-size: 12px;
   color: #888;
   line-height: 1.8;
@@ -1901,6 +1902,22 @@ a:focus-visible {
   text-decoration: underline;
   text-underline-offset: 4px;
 }
+.access-card > .access-login {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  min-height: 50px;
+  margin-top: 12px;
+  border: 1px solid #555;
+  border-radius: 11px;
+  color: #ededed;
+  background: #242424;
+  font-size: 14px;
+  text-decoration: none;
+}
+.access-login:hover { background: #303030; }
+.access-login:focus-visible { outline: 2px solid #eee; outline-offset: 4px; }
 .access-error {
   padding: 14px 16px;
   border: 1px solid #454545;

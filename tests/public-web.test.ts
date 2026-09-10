@@ -3,7 +3,6 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { buildPublicWeb } from '../server/web';
-import { TAILSCALE_SERVER_URL } from '../lib/model';
 
 describe('public domain isolation', () => {
   it('serves the login shell but has no API, even with forged Tailscale headers', async () => {
@@ -17,7 +16,7 @@ describe('public domain isolation', () => {
       const shell = await app.inject('/');
       expect(shell.statusCode).toBe(200);
       expect(shell.headers['content-security-policy']).toContain(
-        TAILSCALE_SERVER_URL,
+        "connect-src 'self' https://*.tailscale.com wss://*.tailscale.com",
       );
       for (const url of [
         '/api/status',

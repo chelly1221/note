@@ -17,6 +17,11 @@ import {
 } from './model';
 import { documentSchema } from './validation';
 import { createSyncScheduler } from './sync-scheduler';
+import {
+  ensureTailscale,
+  tailscaleFetch,
+  subscribeTailEvents,
+} from './tailscale';
 
 const initial: SyncSnapshot = {
   state: 'unconfigured',
@@ -81,11 +86,11 @@ export async function apiRequest<T>(
   const headers = new Headers(options.headers);
   if ((options.method ?? 'GET').toUpperCase() !== 'GET')
     headers.set('X-Note-Request', '1');
-  const response = await fetch(`${settings.serverUrl}${pathname}`, {
+  const response = await tailscaleFetch(`${settings.serverUrl}${pathname}`, {
     ...options,
     headers,
     credentials: 'omit',
-    signal: options.signal ?? AbortSignal.timeout(15000),
+    signal: options.signal ?? AbortSignal.timeout(45000),
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as {
@@ -105,6 +110,7 @@ export async function apiRequest<T>(
 }
 
 export async function connectServer(deviceName: string) {
+  await ensureTailscale();
   const current = await connectionSettings();
   const next: ConnectionSettings = {
     serverUrl: TAILSCALE_SERVER_URL,
@@ -384,13 +390,7 @@ export async function refreshPending() {
 }
 export async function startSync() {
   publish({ lastSyncedAt: await getSetting('lastSyncedAt', null) });
-  const settings = await connectionSettings();
-  const events =
-    settings.connected && typeof EventSource !== 'undefined'
-      ? new EventSource(`${settings.serverUrl}/api/sync/events`)
-      : undefined;
-  events?.addEventListener('open', requestSync);
-  events?.addEventListener('change', requestSync);
+  const stopEvents = subscribeTailEvents(requestSync);
   if (!interval)
     interval = setInterval(() => {
       void syncNow({ automatic: true });
@@ -412,7 +412,7 @@ export async function startSync() {
   window.addEventListener('focus', requestSync);
   requestSync();
   return () => {
-    events?.close();
+    stopEvents();
     clearInterval(interval);
     interval = undefined;
     scheduler.cancel();

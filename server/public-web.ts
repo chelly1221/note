@@ -3,7 +3,6 @@ import fastifyStatic from '@fastify/static';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { TAILSCALE_SERVER_URL } from '../lib/model.ts';
 
 export async function registerPublicWeb(
   app: FastifyInstance,
@@ -47,12 +46,12 @@ export async function registerPublicWeb(
     }
     const contentPolicy = [
       "default-src 'self'",
-      `script-src 'self' ${[...scriptHashes].join(' ')}`,
+      `script-src 'self' 'wasm-unsafe-eval' ${[...scriptHashes].join(' ')}`,
       "script-src-attr 'none'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' blob: data:",
       "font-src 'self'",
-      `connect-src 'self' ${TAILSCALE_SERVER_URL}`,
+      "connect-src 'self' https://*.tailscale.com wss://*.tailscale.com",
       "worker-src 'self'",
       "object-src 'none'",
       "base-uri 'none'",
@@ -61,6 +60,7 @@ export async function registerPublicWeb(
     ].join('; ');
     await app.register(fastifyStatic, {
       root: path.resolve(config.webRoot),
+      preCompressed: true,
       index: ['index.html'],
       setHeaders(response, filename) {
         response.header('Content-Security-Policy', contentPolicy);
