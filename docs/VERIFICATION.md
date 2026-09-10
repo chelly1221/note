@@ -1,5 +1,19 @@
 # 노트 검증 기록
 
+## 0.2.7 — 앱 안의 Tailscale 인증 창
+
+Android에서는 Tailscale 인증 링크를 앱 위의 어두운 Custom Tab으로 엽니다. 웹 브라우저의 일반 링크 동작은 유지합니다. 네이티브 플러그인은 공식 Tailscale 기기 인증 URL과 관리자 기기 목록만 받으며, 페이지에는 노트의 네이티브 브리지나 저장소를 노출하지 않습니다. Android 최소 지원 버전(API 24)은 유지했습니다.
+
+내장 Tailscale 상태가 `Running`이 된 뒤 해당 인증 창을 닫습니다. 기기 승인 대기·연결 시작 상태에서는 닫지 않습니다. 열리는 중에 인증이 완료되면 Android 호스트가 가려질 때까지 닫기를 보류하고, 기존 MainActivity로 돌아오면서 인증 창을 작업 스택에서 제거합니다. 사용자가 직접 창을 닫은 뒤에는 나중의 완료 알림으로 앱을 다시 띄우지 않습니다.
+
+- TypeScript·린트·웹/서버/Android 릴리스 빌드 통과.
+- 자동 테스트 85개 통과. 새 검사는 완료 상태에서 한 번만 닫기, 창을 여는 동안의 승인, 주소 제한, 열기 실패 후 재시도를 확인합니다.
+- Android 16 계측 테스트 2개 통과: 네이티브 URL 제한, 실제 Chrome Custom Tab을 연 직후 닫고 동일한 앱 Activity로 돌아오기 및 작업 스택에 탭이 남지 않음.
+- 창 생명주기 검사는 인증이 필요 없는 공개 페이지로 수행했습니다. Google/Tailscale 계정 입력과 새 기기 승인은 자동화하지 않았으며 실제 계정 재인증 전체 흐름은 별도 사용자 확인 범위입니다.
+- APK `note-0.2.7.apk`: 10,534,883바이트, SHA-256 `2ebf2ec3b6ea552c275387ef1c1ab2652aa98ba3bab3b37f19ff222fef062415`.
+
+구현 참고: [Android Custom Tabs](https://developer.android.com/develop/ui/views/layout/webapps/overview-of-android-custom-tabs), [Android 작업 스택](https://developer.android.com/guide/components/activities/tasks-and-back-stack).
+
 ## 0.2.6 — 햄버거 메뉴 버튼
 
 사이드바 열기 버튼을 패널 모양에서 세 줄 `MenuIcon`으로 변경했습니다. 기존 터치 영역과 접근성 이름, 열고 닫기 동작은 유지합니다. 같은 모바일 웹 메뉴에도 적용됩니다.

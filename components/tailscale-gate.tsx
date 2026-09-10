@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AppDownloadLink } from '@/components/app-download-link';
+import { Capacitor } from '@capacitor/core';
+import { openAuthBrowser } from '@/lib/auth-browser';
 import { getDb, initializeDatabase } from '@/lib/database';
 import { openNotebook, type ConnectionStage } from '@/lib/connect-flow';
 import { registerOfflineShell } from '@/lib/pwa';
@@ -26,6 +28,18 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [stage, setStage] = useState<ConnectionStage>('account');
+  const [browserError, setBrowserError] = useState('');
+  const native = Capacitor.isNativePlatform();
+  function openAuthentication(event: React.MouseEvent<HTMLAnchorElement>) {
+    if (!native) return;
+    event.preventDefault();
+    setBrowserError('');
+    void openAuthBrowser(event.currentTarget.href).catch((error) => {
+      setBrowserError(
+        error instanceof Error ? error.message : '인증 창을 다시 열어 주세요.',
+      );
+    });
+  }
   const attempt = useRef<Promise<void> | null>(null);
   const tunnel = useSyncExternalStore(
     subscribeTailscale,
@@ -97,7 +111,9 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
   const guidance = needsApproval
     ? 'Tailscale 관리자 화면에서 이 기기를 승인해 주세요. 승인되면 자동으로 다음 단계로 넘어갑니다.'
     : loginReady
-      ? '아래 버튼에서 로그인하고 이 기기를 승인해 주세요. 인증을 마치면 이 화면으로 돌아오세요.'
+      ? native
+        ? '아래 버튼에서 로그인하고 이 기기를 승인해 주세요. 인증을 마치면 창이 닫히고 자동으로 돌아옵니다.'
+        : '아래 버튼에서 로그인하고 이 기기를 승인해 주세요. 인증을 마치면 이 화면으로 돌아오세요.'
       : stage === 'server'
         ? '인증한 계정으로 노트 서버에 접근할 수 있는지 확인하고 있어요.'
         : stage === 'opening'
@@ -170,6 +186,7 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
           <a
             className="access-login account-action"
             href={tunnel.loginUrl}
+            onClick={openAuthentication}
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -180,6 +197,7 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
           <a
             className="access-login account-action"
             href="https://console.tailscale.com/admin/machines"
+            onClick={openAuthentication}
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -215,8 +233,14 @@ export function TailscaleGate({ children }: { children: React.ReactNode }) {
         )}
         {loginReady && (
           <p className="access-help">
-            새 창에서 인증합니다. 완료 여부는 자동으로 확인하므로 다시 로그인할
-            필요가 없어요.
+            {native
+              ? '앱 안의 인증 창에서 진행합니다. 완료되면 자동으로 닫힙니다.'
+              : '새 창에서 인증합니다. 완료 여부는 자동으로 확인하므로 다시 로그인할 필요가 없어요.'}
+          </p>
+        )}
+        {browserError && (
+          <p className="access-error" role="alert">
+            {browserError}
           </p>
         )}
         {error && (

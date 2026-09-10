@@ -1,5 +1,5 @@
-export const APP_VERSION = '0.2.6';
-export const ANDROID_VERSION = '0.2.6';
+export const APP_VERSION = '0.2.7';
+export const ANDROID_VERSION = '0.2.7';
 export const ANDROID_DOWNLOAD_URL = `https://note.3chan.kr/downloads/note-${ANDROID_VERSION}.apk`;
 export const TAILSCALE_SERVER_URL = 'https://audax-vm.tail62313c.ts.net:8443';
 export const DEFAULT_FOLDER = '기본 노트';
