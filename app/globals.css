@@ -148,22 +148,6 @@ a:focus-visible {
   padding: 0 16px;
   gap: 0;
 }
-.new-note {
-  background: #2b2b2b;
-  color: #1a1a1a;
-  width: 100%;
-  height: 42px !important;
-  border: 1px solid #cbcbcb40;
-  justify-content: flex-start !important;
-  gap: 8px !important;
-  padding: 0 12px !important;
-  font-size: 14px;
-  font-weight: 650;
-  box-shadow: 0 4px 22px #90909020;
-}
-.new-note:hover {
-  filter: brightness(1.1);
-}
 .key-hint {
   margin-left: auto;
   font-size: 17px;
@@ -209,7 +193,7 @@ a:focus-visible {
 }
 .nav-section-label {
   margin: 31px 11px 10px;
-  color: #717171;
+  color: #a6a6a6;
   font-size: 12px;
   font-weight: 600;
 }
@@ -315,7 +299,7 @@ a:focus-visible {
 }
 .list-subtitle {
   display: block;
-  color: #858585;
+  color: #a6a6a6;
   font-size: 12px;
   margin-top: 9px;
 }
@@ -325,10 +309,10 @@ a:focus-visible {
   gap: 9px;
   margin: 0 20px;
   padding: 10px 12px;
-  border: 1px solid #ffffff08;
+  border: 1px solid #707070;
   border-radius: 9px;
   background: #212121;
-  color: #838383;
+  color: #a6a6a6;
 }
 .search-box input {
   width: 100%;
@@ -339,18 +323,19 @@ a:focus-visible {
   font-size: 13px;
 }
 .search-box input::placeholder {
-  color: #7c7c7c;
+  color: #a6a6a6;
 }
 .search-box kbd {
   font-size: 15px;
-  color: #696969;
+  color: #a6a6a6;
 }
 .search-box:focus-within {
-  border-color: #8787875c;
+  border-color: #c5a1ef;
+  box-shadow: 0 0 0 1px #c5a1ef;
 }
 .list-divider {
   padding: 22px 24px 13px;
-  color: #848484;
+  color: #a6a6a6;
   font-size: 12px;
   display: flex;
   justify-content: space-between;
@@ -361,78 +346,28 @@ a:focus-visible {
   overflow-y: auto;
   padding: 0 12px;
 }
-.note-card {
-  display: block;
-  text-align: left;
-  width: 100%;
-  padding: 17px 17px 16px;
-  border: 1px solid transparent;
-  border-radius: 11px;
-  background: transparent;
-  margin-bottom: 8px;
-  transition: background 0.15s;
-}
-.note-card:hover {
-  background: #232323;
-}
-.note-card.active {
-  background: #272727;
-  border-color: #ababab2a;
-  box-shadow: 0 4px 12px #0000000e;
-}
-.note-card-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 13px;
-}
-.note-glyph {
-  color: #a2a2a2;
-}
-.pin-icon,
 .is-starred {
   color: #b6b6b6;
 }
-.pin-icon {
-  fill: #b6b6b644;
-}
 .note-card h2 {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.25px;
-  color: #dcdcdc;
-  margin: 0 0 8px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.note-card p {
+  color: #e5e5e5;
   margin: 0;
-  font-size: 12px;
-  color: #9b9b9b;
-  line-height: 1.8;
+  line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-.note-card-meta {
-  margin-top: 17px;
-  display: flex;
-  justify-content: space-between;
-  gap: 6px;
-  font-size: 11px;
-  color: #848484;
-}
-.note-card-meta > span {
-  color: #a4a4a4;
+  overflow-wrap: anywhere;
 }
 .list-foot {
   display: flex;
   align-items: center;
   gap: 7px;
   padding: 18px 24px;
-  color: #6f6f6f;
+  color: #a6a6a6;
   font-size: 11px;
 }
 .status-dot {
@@ -590,7 +525,7 @@ a:focus-visible {
   gap: 12px;
   padding: 13px 29px;
   border-top: 1px solid var(--border);
-  color: #6e6e6e;
+  color: #a6a6a6;
   font-size: 11px;
 }
 .editor-footer > span:first-child {
@@ -693,14 +628,8 @@ a:focus-visible {
   .note-textarea {
     min-height: 55dvh;
   }
-  .note-card p {
-    font-size: 13px;
-  }
   .note-card h2 {
     font-size: 16px;
-  }
-  .note-card-meta {
-    font-size: 12px;
   }
   .note-list .search-box input {
     font-size: 16px;
@@ -713,9 +642,6 @@ a:focus-visible {
   }
   .list-subtitle {
     margin-left: 40px;
-  }
-  .note-card {
-    padding: 18px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -737,28 +663,9 @@ a:focus-visible {
   border-color: #ffffff12;
   color: #b2b2b2;
 }
-.new-note {
-  background: #292929;
-  color: #dedede;
-  border-color: #9797972c;
-  box-shadow: none;
-}
-.new-note > svg {
-  color: #b3b3b3;
-}
-.note-card.active {
-  background: #272727;
-  border-color: #9f9f9f2b;
-  box-shadow: none;
-}
 .editor-pane {
   background: var(--background);
 }
-.note-card p {
-  font-size: 14px;
-  line-height: 1.7;
-}
-.note-card-meta,
 .list-foot,
 .editor-footer,
 .save-state {
@@ -892,32 +799,6 @@ a:focus-visible {
   border: 0;
   border-top: 1px solid var(--border);
   text-align: left;
-}
-.note-card-heading > div {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.attachment-count {
-  font-size: 11px;
-  color: #989898;
-}
-.note-card-meta {
-  justify-content: flex-start;
-  align-items: center;
-}
-.note-card-meta > span:nth-child(2) {
-  margin-left: auto;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 60%;
-}
-.pending-indicator {
-  width: 5px;
-  height: 5px;
-  background: #a6a6a6;
-  border-radius: 50%;
 }
 .empty-list strong {
   color: #c4c4c4;
@@ -1702,9 +1583,8 @@ a:focus-visible {
   .mobile-new {
     display: inline-flex;
     margin-left: auto;
-    color: #bbbbbb;
-    width: 36px !important;
-    height: 36px !important;
+    width: 44px !important;
+    height: 44px !important;
   }
   .editor-modebar {
     flex-direction: column-reverse;
@@ -1797,17 +1677,8 @@ a:focus-visible {
   .history-list [data-slot='button'] {
     align-self: flex-start;
   }
-  .note-card {
-    padding: 17px 18px;
-  }
-  .note-card p {
-    font-size: 14px;
-  }
   .list-top {
     padding-top: 20px;
-  }
-  .note-card-meta {
-    font-size: 12px;
   }
   .focus-mode .note-list {
     display: none;
@@ -1916,8 +1787,13 @@ a:focus-visible {
   font-size: 14px;
   text-decoration: none;
 }
-.access-login:hover { background: #303030; }
-.access-login:focus-visible { outline: 2px solid #eee; outline-offset: 4px; }
+.access-login:hover {
+  background: #303030;
+}
+.access-login:focus-visible {
+  outline: 2px solid #eee;
+  outline-offset: 4px;
+}
 .access-error {
   padding: 14px 16px;
   border: 1px solid #454545;
@@ -1949,4 +1825,85 @@ a:focus-visible {
   .access-page {
     padding: 34px 28px;
   }
+}
+
+/* Color marks creation, selection and focus; reading surfaces remain neutral. */
+.new-note,
+.mobile-new {
+  background:
+    linear-gradient(#292929, #292929) padding-box,
+    var(--gradient) border-box;
+  border: 1px solid transparent;
+  color: #f2f2f2;
+  box-shadow: none;
+}
+.new-note {
+  width: 100%;
+  min-height: 44px;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  padding: 0 12px !important;
+  font-size: 14px;
+  font-weight: 650;
+}
+.new-note:hover,
+.mobile-new:hover {
+  background:
+    linear-gradient(#363636, #363636) padding-box,
+    var(--gradient) border-box;
+}
+.new-note > svg,
+.mobile-new > svg {
+  color: #e8a1cb;
+}
+.note-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  text-align: left;
+  width: 100%;
+  min-height: 52px;
+  padding: 13px 17px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  margin-bottom: 4px;
+  transition: background 0.15s;
+}
+.note-card:hover {
+  background: #252525;
+}
+.note-card.active {
+  background: #303030;
+  border-color: #686868;
+}
+.note-card.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--gradient);
+}
+.note-card.active h2 {
+  color: #ffffff;
+  font-weight: 650;
+}
+.note-card:focus-visible {
+  outline-offset: -3px;
+  outline-color: #c5a1ef;
+}
+.is-starred {
+  color: #f1b278;
+}
+.sort-button {
+  min-height: 32px;
+  padding-inline: 6px;
+  border-radius: 6px;
+}
+.sort-button:hover {
+  background: #303030;
+  color: #ededed;
 }

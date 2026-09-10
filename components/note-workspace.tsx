@@ -84,7 +84,7 @@ import {
   subscribeSync,
   syncNow,
 } from '@/lib/sync';
-import { DEFAULT_FOLDER, notePreview, type LocalNote } from '@/lib/model';
+import { DEFAULT_FOLDER, type LocalNote } from '@/lib/model';
 import { importMarkdown } from '@/lib/export';
 import { registerOfflineShell } from '@/lib/pwa';
 import { finishEditing } from '@/lib/edit-session';
@@ -744,45 +744,10 @@ function WorkspaceContent() {
                   key={note.id}
                   className={`note-card ${note.id === activeId ? 'active' : ''}`}
                   aria-pressed={note.id === activeId}
+                  title={note.title || '제목 없는 노트'}
                   onClick={() => select(note.id)}
                 >
-                  <div className="note-card-heading">
-                    <span className="note-glyph">
-                      <FileText size={17} />
-                    </span>
-                    <div>
-                      {note.attachments.length > 0 && (
-                        <span className="attachment-count">
-                          이미지 {note.attachments.length}
-                        </span>
-                      )}
-                      {note.pinned && <Star size={13} className="pin-icon" />}
-                    </div>
-                  </div>
                   <h2>{note.title || '제목 없는 노트'}</h2>
-                  <p>
-                    {notePreview(note.content) || '새로운 생각을 적어보세요.'}
-                  </p>
-                  <div className="note-card-meta">
-                    <time>
-                      {new Date(note.updatedAt).toLocaleDateString('ko-KR', {
-                        month: 'short',
-                        day: 'numeric',
-                      })}
-                    </time>
-                    {note.tags[0] ? (
-                      <span>#{note.tags[0]}</span>
-                    ) : (
-                      <span>{note.folder}</span>
-                    )}
-                    {note.dirty && sync.state !== 'unconfigured' && (
-                      <span
-                        className="pending-indicator"
-                        title="동기화 대기"
-                        aria-label="동기화 대기"
-                      />
-                    )}
-                  </div>
                 </button>
               ))
             )}
