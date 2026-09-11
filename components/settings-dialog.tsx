@@ -1,4 +1,5 @@
 'use client';
+import BackgroundSyncSettings from './background-sync-settings';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Cloud,
@@ -165,6 +166,7 @@ export function SettingsDialog({
             <TabsTrigger value="appearance">쓰기 환경</TabsTrigger>
           </TabsList>
           <TabsContent value="connection">
+            <BackgroundSyncSettings />
             <div className="connection-summary">
               <span
                 className={`connection-symbol ${sync.nasAvailable ? 'connected' : ''}`}

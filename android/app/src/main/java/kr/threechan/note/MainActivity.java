@@ -16,7 +16,9 @@ public class MainActivity extends BridgeActivity {
     private boolean authCloseRequested;
 
     @Override public void onCreate(Bundle savedInstanceState) {
+        BackgroundSyncWorker.foreground(true);
         registerPlugin(AuthBrowserPlugin.class);
+        registerPlugin(BackgroundSyncPlugin.class);
         authTabOpen = savedInstanceState != null && savedInstanceState.getBoolean("note.authTabOpen", false);
         authHostStopped = authTabOpen;
         // Version 0.1.1 uses Tailscale identity and never keeps an app session key.
@@ -65,6 +67,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override public void onResume() {
+        BackgroundSyncWorker.foreground(true);
         super.onResume();
         // A manual close also returns here; a later approval must not reopen the app.
         if (authHostStopped) {
@@ -76,6 +79,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override public void onStop() {
         super.onStop();
+        BackgroundSyncWorker.foreground(false);
+        BackgroundSyncWorker.soon(this);
         if (authTabOpen) {
             authHostStopped = true;
             if (authCloseRequested) closeAuthTab();

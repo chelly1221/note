@@ -81,7 +81,7 @@ function setup() {
         );
     }
   };
-  port.postMessage({ type: 'init' });
+  port.postMessage({ type: "init", interactive: (typeof window === "undefined" || !window.BackgroundSyncNative) });
   if (typeof window !== 'undefined')
     window.addEventListener('pagehide', (event) => {
       if (!event.persisted) port?.postMessage({ type: 'close' });
@@ -93,7 +93,7 @@ export async function ensureTailscale(): Promise<void> {
   if (snapshot.state === 'Running') return;
   if (snapshot.state === 'Error') throw new Error(snapshot.message);
   if (
-    existing &&
+    existing && (typeof window === "undefined" || !window.BackgroundSyncNative) &&
     (snapshot.state === 'NeedsLogin' || snapshot.state === 'Stopped')
   )
     port?.postMessage({ type: 'login' });
@@ -122,6 +122,24 @@ export async function ensureTailscale(): Promise<void> {
 export function logoutTailscale() {
   port?.postMessage({ type: 'logout' });
   publish({ state: 'Stopped', loginUrl: '', message: '로그아웃했어요.' });
+}
+export function suspendTailscale() {
+  if (!owner) return;
+  for (const work of pending.values()) {
+    work.cleanup();
+    work.reject(new Error("앱이 백그라운드로 이동했어요."));
+  }
+  pending.clear();
+  if (port) port.onmessage = null;
+  owner.onerror = null;
+  if (owner instanceof Worker) { owner.postMessage({ type: "close" }); const closing=owner; setTimeout(()=>closing.terminate(),1000); }
+  else {
+    owner.port.postMessage({ type: "close" });
+    owner.port.close();
+  }
+  port = undefined;
+  owner = undefined;
+  publish({ state: "Stopped", message: "백그라운드 동기화 대기", loginUrl: "" });
 }
 export function subscribeTailEvents(listener: () => void) {
   events.add(listener);

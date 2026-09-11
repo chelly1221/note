@@ -5,6 +5,8 @@
         <intent><action android:name="android.support.customtabs.action.CustomTabsService" /></intent>
     </queries>
 
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <application
         android:allowBackup="false"
         android:fullBackupContent="false"

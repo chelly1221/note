@@ -4,7 +4,7 @@
 
 - 웹: https://note.3chan.kr
 - Android 패키지: `kr.threechan.note`
-- 앱 설치 파일: `releases/note-0.2.9.apk`
+- 앱 설치 파일: `releases/note-0.2.10.apk`
 - 서버: `3chan@100.89.61.28`, `/srv/note`, `note.service`
 - NAS: ASUSTOR `100.75.89.101`, 공유 `Note` (Volume2), 데이터 `/volume2/Note/note`
 
@@ -75,3 +75,13 @@ tailscale serve status
 기존 Caddy의 `note.3chan.kr` 라우트는 `note-web:8788`로 연결됩니다. 공개 웹 프로세스에는 NAS 마운트, 비밀 키, 데이터 API가 없습니다. 실제 API는 별도 `note_private` Docker 네트워크에 있으며 호스트의 `127.0.0.1:8787`에만 노출됩니다. Tailscale Serve가 `https://audax-vm.tail62313c.ts.net:8443`에서 이 API로 연결하고, 매 요청의 사용자 정보가 허용 계정과 일치해야 합니다. 기존 키와 쿠키는 실서비스에서 인증 수단으로 사용할 수 없습니다.
 
 2026-09-10 Nextcloud Notes의 `메모` 폴더에서 16개 노트를 `Nextcloud에서 가져옴` 폴더로 옮겼습니다. 제목·본문·수정 시간과 NAS 저장 결과를 전수 비교했습니다. Nextcloud 원본은 변경하지 않았으며, 공유 폴더의 `nextcloud-import-20260910`에 원본 내보내기와 검증 기록을 보관합니다. 생성 시간이 없는 원본은 수정 시간을 생성 시간에도 사용했습니다.
+
+## 알림 없는 백그라운드 동기화
+
+Android 앱은 로그인한 뒤 약 15분 간격의 WorkManager 작업과 앱을 닫은 뒤의 단일 예약 작업을 등록합니다. 화면을 열지 않아도 기존 기기 저장소와 내장 Tailscale 연결로 동기화하며, 연결 실패는 지수 지연으로 재시도합니다. 동기화 알림이나 포그라운드 서비스는 사용하지 않습니다. 재부팅·프로세스 종료 뒤에도 Android가 작업을 관리합니다. 강제 종료한 앱은 다시 열어야 하며, 절전·제조사 제한에서는 실행이 늦어질 수 있습니다.
+
+앱이 배터리 최적화 예외, 백그라운드 실행 제한, 데이터 절약 제한, 미사용 앱 활동·권한 자동 중지 상태를 직접 확인합니다. 이미 허용한 항목에는 설정 버튼이나 권한 요청이 나오지 않습니다. 필요한 항목만 이유와 함께 요청하고, 시스템 설정에서 돌아오면 다시 확인합니다. ‘나중에’를 선택하면 하루 동안 자동 요청을 미루며 설정 화면에서는 언제든 처리할 수 있습니다. 확인할 수 없는 상태는 허용됐다고 표시하지 않습니다. 최신 APK 설치 뒤 앱을 한 번 열면 예약과 상태 확인이 시작됩니다.
+
+백그라운드 WebView는 앱과 같은 https://localhost 저장소를 사용합니다. 로그인되지 않은 경우 동작하지 않으며, 백그라운드에서 새 인증 창을 열지 않습니다. 앱에 복귀하면 실행 중인 백그라운드 WebView를 종료하고 전경 연결이 이어받아 같은 Tailscale 기기를 중복 실행하지 않습니다. 작업은 최대 3분으로 제한하며, 로그아웃하면 예약을 취소합니다. 설정 화면에서 최근 실행 결과와 성공 시각을 확인할 수 있습니다.
+
+근거: [Android WorkManager](https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started/define-work), [배터리 절전 제한](https://developer.android.com/training/monitoring-device-state/doze-standby), [미사용 앱 중지 상태 확인](https://developer.android.com/topic/performance/app-hibernation).

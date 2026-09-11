@@ -1,4 +1,6 @@
 'use client';
+import { startBackgroundSync } from "@/lib/background-sync";
+
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   ArrowRight,
@@ -24,6 +26,7 @@ import {
 } from '@/lib/tailscale';
 
 export function TailscaleGate({ children }: { children: React.ReactNode }) {
+  useEffect(startBackgroundSync, []);
   const [allowed, setAllowed] = useState(false);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);

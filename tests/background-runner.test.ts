@@ -1,0 +1,13 @@
+import { beforeEach, afterEach, expect, it, vi } from 'vitest';
+const transport=vi.hoisted(()=>({state:'Running',ensure:vi.fn(),stop:vi.fn(),sub:vi.fn(),unsubscribe:vi.fn()}));
+vi.mock('../lib/tailscale',()=>({ensureTailscale:transport.ensure,suspendTailscale:transport.stop,getTailscaleSnapshot:()=>({state:transport.state}),subscribeTailscale:transport.sub}));
+import { runBackgroundSync } from '../lib/background-runner';
+beforeEach(()=>{vi.useFakeTimers();vi.clearAllMocks();transport.state='Running';transport.ensure.mockResolvedValue(undefined);transport.sub.mockReturnValue(transport.unsubscribe);});
+afterEach(()=>vi.useRealTimers());
+it('does not connect or sync after logout',async()=>{const sync=vi.fn();expect(await runBackgroundSync(async()=>false,sync)).toBe('skipped');expect(transport.ensure).not.toHaveBeenCalled();expect(sync).not.toHaveBeenCalled();});
+it('publishes the updated snapshot after a successful sync and releases transport',async()=>{const order:string[]=[];expect(await runBackgroundSync(async()=>true,async()=>{order.push('sync');return true;},async()=>{order.push('widget');})).toBe('ok');expect(order).toEqual(['sync','widget']);expect(transport.stop).toHaveBeenCalledOnce();expect(vi.getTimerCount()).toBe(0);});
+it('retries a failed sync without reporting success',async()=>{expect(await runBackgroundSync(async()=>true,async()=>false)).toBe('retry');expect(transport.stop).toHaveBeenCalledOnce();});
+it('does not launch authentication in a headless run',async()=>{transport.state='NeedsLogin';transport.ensure.mockReturnValue(new Promise(()=>{}));const sync=vi.fn();expect(await runBackgroundSync(async()=>true,sync)).toBe('auth');expect(sync).not.toHaveBeenCalled();expect(transport.unsubscribe).toHaveBeenCalledOnce();});
+it('times out an unreachable tunnel and releases it for a later retry',async()=>{transport.ensure.mockReturnValue(new Promise(()=>{}));const run=runBackgroundSync(async()=>true,vi.fn());await vi.advanceTimersByTimeAsync(45001);expect(await run).toBe('retry');expect(transport.stop).toHaveBeenCalledOnce();});
+it('checks logout again after connecting',async()=>{const admitted=vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);const sync=vi.fn();expect(await runBackgroundSync(admitted,sync)).toBe('skipped');expect(sync).not.toHaveBeenCalled();expect(transport.stop).toHaveBeenCalledOnce();});
+it('retries if widget publication fails without recording a false completion',async()=>{expect(await runBackgroundSync(async()=>true,async()=>true,async()=>{throw Error('storage');})).toBe('retry');});
