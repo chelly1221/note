@@ -10,25 +10,16 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { MenuIcon } from 'lucide-react';
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state';
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const SIDEBAR_WIDTH = '16rem';
-const SIDEBAR_WIDTH_MOBILE = '18rem';
 const SIDEBAR_WIDTH_ICON = '3rem';
 const SIDEBAR_KEYBOARD_SHORTCUT = 'b';
 
@@ -156,13 +147,19 @@ function Sidebar({
   className,
   children,
   dir,
+  mobileTriggerHidden = false,
+  panel,
+  onPanelClose,
   ...props
 }: React.ComponentProps<'div'> & {
   side?: 'left' | 'right';
   variant?: 'sidebar' | 'floating' | 'inset';
   collapsible?: 'offcanvas' | 'icon' | 'none';
+  mobileTriggerHidden?: boolean;
+  panel?: React.ReactNode;
+  onPanelClose?: () => void;
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+  const { isMobile, state } = useSidebar();
 
   if (collapsible === 'none') {
     return (
@@ -181,29 +178,9 @@ function Sidebar({
 
   if (isMobile) {
     return (
-      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
-        <SheetContent
-          dir={dir}
-          data-sidebar="sidebar"
-          data-slot="sidebar"
-          data-mobile="true"
-          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
-          style={
-            {
-              '--sidebar-width': SIDEBAR_WIDTH_MOBILE,
-            } as React.CSSProperties
-          }
-          side={side}
-        >
-          <SheetHeader className="sr-only">
-            <SheetTitle>노트 메뉴</SheetTitle>
-            <SheetDescription>
-              노트와 폴더를 탐색하고 설정을 엽니다.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
-        </SheetContent>
-      </Sheet>
+      <MobileNavigation dir={dir} triggerHidden={mobileTriggerHidden} panel={panel} onPanelClose={onPanelClose}>
+        {children}
+      </MobileNavigation>
     );
   }
 
@@ -253,12 +230,108 @@ function Sidebar({
   );
 }
 
+function MobileNavigation({
+  children,
+  dir,
+  triggerHidden,
+  panel,
+  onPanelClose,
+}: {
+  children: React.ReactNode;
+  dir?: string;
+  triggerHidden: boolean;
+  panel?: React.ReactNode;
+  onPanelClose?: () => void;
+}) {
+  const { openMobile, setOpenMobile } = useSidebar();
+  const root = React.useRef<HTMLDivElement>(null);
+  const panelOpen = Boolean(panel);
+  const expanded = openMobile || panelOpen;
+  React.useEffect(() => {
+    if (!expanded) return;
+    const previous =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    root.current
+      ?.querySelector<HTMLButtonElement>('[data-sidebar="trigger"]')
+      ?.focus();
+    const keyboard = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        (event.target instanceof Element &&
+          event.target.closest(
+            '[data-slot="dialog-content"], [data-slot="alert-dialog-content"], [role="menu"]',
+          ))
+      )
+        return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        if (panelOpen) onPanelClose?.(); else setOpenMobile(false);
+      }
+      if (event.key === 'Tab') {
+        const elements = [
+          ...root.current!.querySelectorAll<HTMLElement>(
+            'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [tabindex="0"]',
+          ),
+        ].filter(
+          (element) =>
+            element.getClientRects().length && !element.closest('[inert]'),
+        );
+        const first = elements[0],
+          last = elements.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', keyboard);
+    return () => {
+      document.removeEventListener('keydown', keyboard);
+      if (previous?.isConnected) previous.focus();
+    };
+  }, [expanded, panelOpen, onPanelClose, setOpenMobile]);
+  return (
+    <div
+      ref={root}
+      className={'note-navigation-layer' + (panelOpen ? ' has-panel' : '')}
+      role={expanded ? 'dialog' : undefined}
+      aria-modal={expanded || undefined}
+      aria-label={expanded ? (panelOpen ? '설정' : '노트 메뉴') : undefined}
+      dir={dir}
+    >
+      <SidebarTrigger
+        className="mobile-menu navigation-toggle"
+        hidden={triggerHidden && !expanded}
+        aria-label={panelOpen ? '설정 닫기' : openMobile ? '메뉴 닫기' : '메뉴 열기'}
+        aria-expanded={expanded}
+        onClick={panelOpen ? (event) => { event.preventDefault(); onPanelClose?.(); } : undefined}
+        aria-controls={panelOpen ? "note-settings-panel" : "note-navigation-panel"}
+      />
+      <div
+        id="note-navigation-panel"
+        data-mobile="true"
+        className={`note-navigation-sheet${openMobile ? ' is-open' : ''}`}
+        inert={panelOpen || !openMobile}
+        aria-hidden={panelOpen || !openMobile}
+      >
+        <div className="flex h-full w-full flex-col">{children}</div>
+      </div>
+      {panel}
+    </div>
+  );
+}
+
 function SidebarTrigger({
   className,
   onClick,
   ...props
 }: React.ComponentProps<typeof Button>) {
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, openMobile } = useSidebar();
 
   return (
     <Button
@@ -269,11 +342,18 @@ function SidebarTrigger({
       className={cn(className)}
       onClick={(event) => {
         onClick?.(event);
-        toggleSidebar();
+        if (!event.defaultPrevented) toggleSidebar();
       }}
       {...props}
     >
-      <MenuIcon aria-hidden="true" />
+      <span
+        className={`note-menu-glyph${(props['aria-expanded'] ?? openMobile) ? ' is-open' : ''}`}
+        aria-hidden="true"
+      >
+        <span />
+        <span />
+        <span />
+      </span>
       <span className="sr-only">메뉴 열고 닫기</span>
     </Button>
   );

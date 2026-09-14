@@ -11,6 +11,7 @@ vi.mock('@capacitor/core', () => ({
 }));
 vi.mock('../lib/tailscale', () => ({
   ensureTailscale: async () => {},
+  recoverTailscale: async () => {},
   tailscaleFetch: (input: string, options: RequestInit) =>
     fetch(input, options),
   subscribeTailEvents: () => () => {},

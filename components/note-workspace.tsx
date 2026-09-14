@@ -1,5 +1,6 @@
 'use client';
 import {
+  useCallback,
   useEffect,
   useEffectEvent,
   useMemo,
@@ -10,18 +11,15 @@ import {
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowUpRight,
-  ChevronDown,
-  Cloud,
+  ArrowDownWideNarrow,
   CloudOff,
   FileText,
   Folder,
   FolderPlus,
   Hash,
   Plus,
-  RefreshCw,
   Search,
-  Settings2,
-  Sparkles,
+  Settings,
   Star,
   Trash2,
   Upload,
@@ -38,7 +36,6 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarProvider,
-  SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
 import {
@@ -129,6 +126,7 @@ function WorkspaceContent() {
   const [activeId, setActiveId] = useState('');
   const [filter, setFilter] = useState<Filter>({ type: 'all' });
   const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [sort, setSort] = useState('updated');
   const [mobileEditor, setMobileEditor] = useState(false);
   const [focus, setFocus] = useState(false);
@@ -141,7 +139,8 @@ function WorkspaceContent() {
   const [folderBusy, setFolderBusy] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
-  const { setOpenMobile, setOpen, openMobile } = useSidebar();
+  const { setOpenMobile, setOpen, openMobile, isMobile } = useSidebar();
+  const closeSettings = useCallback(() => { setSettingsOpen(false); setOpenMobile(false); }, [setOpenMobile]);
   const notes = useLiveQuery(() => getDb().notes.toArray(), [], []);
   const storedFolders = useLiveQuery(
     () => getSetting<string[]>('folders', []),
@@ -188,7 +187,6 @@ function WorkspaceContent() {
         ),
     [notes, filter, query, sort],
   );
-  const normal = notes.filter((note) => !note.deletedAt);
   const heading =
     filter.type === 'starred'
       ? '즐겨찾기'
@@ -385,6 +383,7 @@ function WorkspaceContent() {
       setFocus(false);
       setOpen(true);
       setMobileEditor(false);
+      setSearchOpen(true);
       requestAnimationFrame(() => searchInput.current?.focus());
     }
     if (
@@ -455,28 +454,35 @@ function WorkspaceContent() {
     );
   return (
     <>
-      <svg width="0" height="0" aria-hidden="true" className="brand-defs">
-        <defs>
-          <linearGradient id="brand-gradient" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#a37bf2" />
-            <stop offset="43%" stopColor="#ef8bc9" />
-            <stop offset="74%" stopColor="#fa897c" />
-            <stop offset="100%" stopColor="#f8b16b" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <Sidebar className="app-sidebar" collapsible="offcanvas">
+      <Sidebar
+        className="app-sidebar"
+        collapsible="offcanvas"
+        mobileTriggerHidden={mobileEditor}
+        panel={settingsOpen && isMobile ? <SettingsDialog open onOpenChange={setSettingsOpen} embedded /> : null}
+        onPanelClose={closeSettings}
+      >
         <SidebarHeader className="brand-block">
           <button
             className="brand"
             onClick={() => choose({ type: 'all' })}
             aria-label="노트 홈"
           >
-            <span className="brand-mark">
-              <Sparkles size={24} stroke="url(#brand-gradient)" />
-            </span>
-            <span>노트</span>
+            노트
           </button>
+          <div className="navigation-actions">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="설정"
+              onClick={() => {
+                setOpenMobile(false);
+                setSettingsOpen(true);
+              }}
+            >
+              <Settings className="size-[21px]" size={21} />
+            </Button>
+            <AppDownloadLink className="navigation-download" iconOnly />
+          </div>
         </SidebarHeader>
         <SidebarContent className="sidebar-main">
           <Button
@@ -484,7 +490,7 @@ function WorkspaceContent() {
             onClick={() => void create()}
             disabled={!ready}
           >
-            <Plus size={18} />새 노트<span className="key-hint">＋</span>
+            <Plus size={18} />새 노트
           </Button>
           <nav className="nav-list" aria-label="노트 탐색">
             <Button
@@ -493,7 +499,7 @@ function WorkspaceContent() {
               onClick={() => choose({ type: 'all' })}
             >
               <FileText />
-              모든 노트<span>{normal.length}</span>
+              모든 노트
             </Button>
             <Button
               variant="ghost"
@@ -501,7 +507,7 @@ function WorkspaceContent() {
               onClick={() => choose({ type: 'starred' })}
             >
               <Star />
-              즐겨찾기<span>{normal.filter((note) => note.pinned).length}</span>
+              즐겨찾기
             </Button>
           </nav>
           <div className="nav-section-label">
@@ -531,9 +537,6 @@ function WorkspaceContent() {
                 >
                   <Folder />
                   <span className="nav-folder-name">{folder}</span>
-                  <span>
-                    {normal.filter((note) => note.folder === folder).length}
-                  </span>
                 </Button>
                 {folder !== DEFAULT_FOLDER && (
                   <DropdownMenu>
@@ -576,7 +579,7 @@ function WorkspaceContent() {
               </div>
             ))}
           </nav>
-          <div className="nav-section-label">태그</div>
+          {!!tags.length && <div className="nav-section-label">태그</div>}
           {tags.length ? (
             <nav aria-label="태그">
               {tags.map((tag) => (
@@ -591,13 +594,10 @@ function WorkspaceContent() {
                 </Button>
               ))}
             </nav>
-          ) : (
-            <p className="sidebar-hint">노트에 태그를 달아보세요.</p>
-          )}
+          ) : null}
         </SidebarContent>
         <SidebarFooter className="sidebar-bottom">
           <div>
-            <AppDownloadLink className="nav-item app-download-link" />
             <Button
               variant="ghost"
               className="nav-item"
@@ -625,54 +625,60 @@ function WorkspaceContent() {
             >
               <Trash2 />
               휴지통
-              <span>{notes.filter((note) => note.deletedAt).length || ''}</span>
-            </Button>
-            <Button
-              variant="ghost"
-              className="nav-item"
-              onClick={() => setSettingsOpen(true)}
-            >
-              <Settings2 />
-              설정
             </Button>
           </div>
-          <button
-            className="device-card"
-            onClick={() => setSettingsOpen(true)}
-            aria-label="동기화 설정 열기"
-          >
-            <span className="device-orb" />
-            <span className="device-card-text">
-              <strong>나의 작업 공간</strong>
-              <span>
-                {sync.state === 'unconfigured'
-                  ? '기기에만 저장'
-                  : sync.state === 'syncing'
-                    ? '동기화 중'
-                    : sync.nasAvailable
-                      ? 'NAS와 연결됨'
-                      : '연결 확인 필요'}
-              </span>
-            </span>
-            {sync.state === 'syncing' ? (
-              <RefreshCw size={18} className="spin" />
-            ) : sync.nasAvailable ? (
-              <Cloud size={18} />
-            ) : (
-              <CloudOff size={18} />
-            )}
-          </button>
         </SidebarFooter>
       </Sidebar>
       <main
+        inert={isMobile && (openMobile || settingsOpen)}
         className={`main-workspace ${mobileEditor ? 'show-editor' : ''} ${focus ? 'focus-mode' : ''}`}
       >
         <section className="note-list" aria-label="노트 목록">
           <div className="list-top">
             <div className="list-title">
-              <SidebarTrigger className="mobile-menu" aria-label="메뉴 열기" />
               <h1>{heading}</h1>
-              <span className="count-badge">{visible.length}</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <button className="sort-button" aria-label="노트 정렬" />
+                  }
+                >
+                  <span className="sort-label">
+                    {sort === 'title'
+                      ? '이름순'
+                      : sort === 'created'
+                        ? '작성순'
+                        : '수정순'}
+                  </span>
+                  <ArrowDownWideNarrow size={17} />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setSort('updated')}>
+                    최근 수정순
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSort('created')}>
+                    최근 작성순
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSort('title')}>
+                    이름순
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="search-toggle"
+                aria-label={searchOpen ? '검색 닫기' : '노트 검색 열기'}
+                aria-expanded={searchOpen}
+                onClick={() => {
+                  setSearchOpen(!searchOpen);
+                  if (searchOpen) setQuery('');
+                  else
+                    requestAnimationFrame(() => searchInput.current?.focus());
+                }}
+              >
+                <Search size={19} />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
@@ -683,57 +689,26 @@ function WorkspaceContent() {
                 <Plus />
               </Button>
             </div>
-            <span className="list-subtitle">
-              {filter.type === 'trash'
-                ? '필요한 기록은 다시 꺼내 쓸 수 있어요.'
-                : '작은 생각부터, 차곡차곡.'}
-            </span>
           </div>
-          <label className="search-box">
-            <Search size={17} />
-            <input
-              ref={searchInput}
-              aria-label="노트 검색"
-              placeholder="노트 검색"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            {query ? (
-              <button aria-label="검색 지우기" onClick={() => setQuery('')}>
-                <X size={15} />
-              </button>
-            ) : (
-              <kbd>⌘ K</kbd>
-            )}
-          </label>
-          <div className="list-divider">
-            <span>{query ? '검색 결과' : `${visible.length}개의 노트`}</span>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <button className="sort-button" aria-label="노트 정렬" />
-                }
-              >
-                {sort === 'title'
-                  ? '이름순'
-                  : sort === 'created'
-                    ? '최근 작성순'
-                    : '최근 수정순'}
-                <ChevronDown size={13} />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setSort('updated')}>
-                  최근 수정순
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSort('created')}>
-                  최근 작성순
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSort('title')}>
-                  이름순
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          {searchOpen && (
+            <label className="search-box">
+              <Search size={17} />
+              <input
+                ref={searchInput}
+                aria-label="노트 검색"
+                placeholder="노트 검색"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              {query ? (
+                <button aria-label="검색 지우기" onClick={() => setQuery('')}>
+                  <X size={15} />
+                </button>
+              ) : (
+                <kbd>⌘ K</kbd>
+              )}
+            </label>
+          )}
           <div className="note-items">
             {!ready ? (
               <div className="empty-list">
@@ -822,7 +797,7 @@ function WorkspaceContent() {
           ) : (
             <div className="editor-empty">
               <span className="empty-brand">
-                <Sparkles stroke="url(#brand-gradient)" size={36} />
+                <FileText size={32} strokeWidth={1.2} />
               </span>
               <h2>새로운 생각을 위한 노트</h2>
               <p>
@@ -839,7 +814,7 @@ function WorkspaceContent() {
           )}
         </section>
       </main>
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      {!isMobile && <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />}
       <Dialog
         open={folderDialog}
         onOpenChange={(open) => {

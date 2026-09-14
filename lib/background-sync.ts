@@ -1,7 +1,7 @@
 import { Capacitor, registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import { liveQuery } from "dexie";
-import { ensureTailscale, suspendTailscale, getTailscaleSnapshot } from "./tailscale";
+import { recoverTailscale, suspendTailscale, getTailscaleSnapshot } from "./tailscale";
 import { connectionSettings, syncNow } from "./sync";
 
 export type BackgroundStatus = { enabled:boolean; batteryAllowed:boolean; backgroundRestricted:boolean; dataRestricted:boolean; unusedRestricted:boolean; unusedStatus:number; lastAttempt:number; lastSuccess:number; outcome:string };
@@ -38,9 +38,8 @@ export function startBackgroundSync(){
     }
     void refreshBackground().catch(()=>{});
     void backgroundAdmitted().then(allowed=>{
-      if(allowed&&!stopped){
-        if(getTailscaleSnapshot().state==="Error")suspendTailscale();
-        void ensureTailscale().then(async()=>{await syncNow();}).catch(()=>{});
+      if(allowed&&!stopped&&active){
+        void recoverTailscale().then(async()=>{if(!stopped&&active)await syncNow();}).catch(()=>{});
       }
     });
   });

@@ -21,7 +21,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   connectionSettings,
   connectServer,
@@ -34,10 +33,15 @@ import {
 } from '@/lib/sync';
 import { exportNotebook, importNotebook } from '@/lib/export';
 import { getSetting, setSetting } from '@/lib/database';
-import { logoutTailscale, getTailscaleSnapshot, getServerTailscaleSnapshot, subscribeTailscale } from '@/lib/tailscale';
+import {
+  logoutTailscale,
+  getTailscaleSnapshot,
+  getServerTailscaleSnapshot,
+  subscribeTailscale,
+} from '@/lib/tailscale';
 import { openAuthBrowser } from '@/lib/auth-browser';
 import { notify } from '@/components/notice';
-import { ANDROID_DOWNLOAD_URL, APP_VERSION } from '@/lib/model';
+import { APP_VERSION } from '@/lib/model';
 import { finishEditing } from '@/lib/edit-session';
 import {
   applyOfflineUpdate,
@@ -51,12 +55,22 @@ import { Capacitor } from '@capacitor/core';
 export function SettingsDialog({
   open,
   onOpenChange,
+  embedded = false,
 }: {
+  embedded?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const tunnel = useSyncExternalStore(subscribeTailscale, getTailscaleSnapshot, getServerTailscaleSnapshot);
-  const loginUrl = tunnel.loginUrl || (tunnel.state === 'NeedsMachineAuth' ? 'https://console.tailscale.com/admin/machines' : '');
+  const tunnel = useSyncExternalStore(
+    subscribeTailscale,
+    getTailscaleSnapshot,
+    getServerTailscaleSnapshot,
+  );
+  const loginUrl =
+    tunnel.loginUrl ||
+    (tunnel.state === 'NeedsMachineAuth'
+      ? 'https://console.tailscale.com/admin/machines'
+      : '');
   const offline = useSyncExternalStore(
     subscribeOffline,
     getOfflineSnapshot,
@@ -150,22 +164,9 @@ export function SettingsDialog({
       setBusy(false);
     }
   }
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="settings-dialog">
-        <DialogHeader>
-          <DialogTitle>나의 작업 공간</DialogTitle>
-          <DialogDescription>
-            연결, 백업, 쓰기 환경을 관리해요.
-          </DialogDescription>
-        </DialogHeader>
-        <Tabs defaultValue="connection">
-          <TabsList className="settings-tabs">
-            <TabsTrigger value="connection">동기화</TabsTrigger>
-            <TabsTrigger value="data">내 기록</TabsTrigger>
-            <TabsTrigger value="appearance">쓰기 환경</TabsTrigger>
-          </TabsList>
-          <TabsContent value="connection">
+  const content = <>
+        <div className="settings-sections">
+          <section className="settings-connection-section"><h3>Tailscale</h3>
             <BackgroundSyncSettings />
             <div className="connection-summary">
               <span
@@ -199,9 +200,24 @@ export function SettingsDialog({
                 </Button>
               )}
             </div>
-            {loginUrl && <a className="access-login" href={loginUrl} target="_blank" rel="noopener noreferrer" onClick={event => {
-              if (Capacitor.isNativePlatform()) { event.preventDefault(); void openAuthBrowser(loginUrl).catch(err => setError(String(err))); }
-            }}>동기화를 위해 Tailscale 다시 인증</a>}
+            {loginUrl && (
+              <a
+                className="access-login"
+                href={loginUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(event) => {
+                  if (Capacitor.isNativePlatform()) {
+                    event.preventDefault();
+                    void openAuthBrowser(loginUrl).catch((err) =>
+                      setError(String(err)),
+                    );
+                  }
+                }}
+              >
+                동기화를 위해 Tailscale 다시 인증
+              </a>
+            )}
             {sync.lastSyncedAt && (
               <p className="settings-hint">
                 마지막 동기화:{' '}
@@ -209,14 +225,9 @@ export function SettingsDialog({
               </p>
             )}
             <form onSubmit={connect} className="settings-form">
-              <div className="settings-section">
-                <h3>내장 Tailscale 연결</h3>
-                <p>
-                  별도 앱 없이 노트 안에서 암호화된 연결을 열어요. 본인 계정을
-                  확인한 뒤 NAS에 동기화해요.
-                </p>
-                {connected && login && <small>연결 계정: {login}</small>}
-              </div>
+              {connected && login && (
+                <p className="settings-hint">연결 계정: {login}</p>
+              )}
               <label>
                 기기 이름
                 <input
@@ -258,8 +269,8 @@ export function SettingsDialog({
               <ShieldCheck size={14} />
               입력 즉시 기기에 저장하고, Tailscale을 통해서만 NAS에 동기화해요.
             </p>
-          </TabsContent>
-          <TabsContent value="data">
+          </section>
+          <div className="settings-data-section">
             <div className="settings-section">
               <h3>전체 백업</h3>
               <p>노트와 첨부 이미지를 하나의 파일에 담아요.</p>
@@ -302,7 +313,7 @@ export function SettingsDialog({
             </div>
             <div className="settings-section">
               <h3>기기 저장소</h3>
-              <p>오프라인 기록을 보관하는 공간이에요.</p>
+
               <Button
                 variant="ghost"
                 onClick={async () => {
@@ -323,26 +334,8 @@ export function SettingsDialog({
                 삭제됩니다.
               </small>
             </div>
-          </TabsContent>
-          <TabsContent value="appearance">
-            {!Capacitor.isNativePlatform() && (
-              <section className="settings-section">
-                <h3>안드로이드 앱</h3>
-                <p>휴대폰에서도 같은 노트를 이어서 작성하세요.</p>
-                <Button
-                  variant="outline"
-                  render={
-                    <a
-                      href={ANDROID_DOWNLOAD_URL}
-                      aria-label="앱 설치 파일 받기"
-                      download
-                    />
-                  }
-                >
-                  <Download size={16} /> 앱 설치 파일 받기
-                </Button>
-              </section>
-            )}
+          </div>
+          <div className="settings-preferences-section">
             <div className="settings-section">
               <h3>앱과 오프라인 사용</h3>
               <p>
@@ -368,7 +361,7 @@ export function SettingsDialog({
             </div>
             <div className="settings-section">
               <h3>본문 글자 크기</h3>
-              <p>편안하게 읽고 쓸 수 있는 크기를 선택하세요.</p>
+
               <div className="font-options">
                 {[16, 18, 20, 22].map((size) => (
                   <Button
@@ -392,8 +385,7 @@ export function SettingsDialog({
                 작은 생각이 모여 나의 기록이 됩니다.
               </p>
             </div>
-            <div className="settings-section">
-              <h3>키보드 단축키</h3>
+            <details className="settings-section settings-shortcuts"><summary>키보드 단축키</summary>
               <dl className="shortcut-list">
                 <div>
                   <dt>새 노트</dt>
@@ -412,9 +404,9 @@ export function SettingsDialog({
                   <dd>Ctrl / ⌘ + S</dd>
                 </div>
               </dl>
-            </div>
-          </TabsContent>
-        </Tabs>
+            </details>
+          </div>
+        </div>
         {error && (
           <p className="form-error" role="alert">
             {error}
@@ -424,7 +416,7 @@ export function SettingsDialog({
           <span className="gradient-text">노트</span>
           <span>v{APP_VERSION}</span>
         </div>
-      </DialogContent>
-    </Dialog>
-  );
+  </>;
+  if (embedded) return open ? <section id="note-settings-panel" className="settings-dialog embedded-settings" aria-labelledby="note-settings-title"><header className="settings-page-header"><h2 id="note-settings-title">설정</h2></header><div className="settings-page-content">{content}</div></section> : null;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="settings-dialog"><DialogHeader><DialogTitle>설정</DialogTitle><DialogDescription className="sr-only">연결, 백업, 쓰기 환경을 관리해요.</DialogDescription></DialogHeader>{content}</DialogContent></Dialog>;
 }

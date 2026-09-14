@@ -45,10 +45,10 @@ public class BackgroundSyncWorker extends Worker {
             new PeriodicWorkRequest.Builder(BackgroundSyncWorker.class,15,TimeUnit.MINUTES)
                 .setConstraints(constraints()).setBackoffCriteria(BackoffPolicy.EXPONENTIAL,1,TimeUnit.MINUTES).build());
     }
-    static void soon(Context c){
-        if(!enabled(c))return;
+    static Operation soon(Context c){
+        if(!enabled(c))return null;
         ensureScheduled(c);
-        WorkManager.getInstance(c).enqueueUniqueWork(SOON,ExistingWorkPolicy.KEEP,
+        return WorkManager.getInstance(c).enqueueUniqueWork(SOON,ExistingWorkPolicy.KEEP,
             new OneTimeWorkRequest.Builder(BackgroundSyncWorker.class).setInitialDelay(20,TimeUnit.SECONDS)
                 .setConstraints(constraints()).setBackoffCriteria(BackoffPolicy.EXPONENTIAL,1,TimeUnit.MINUTES).build());
     }
@@ -62,7 +62,10 @@ public class BackgroundSyncWorker extends Worker {
             start();
         });
         try{
-            if(!finished.await(180,TimeUnit.SECONDS))main.post(()->finish("retry"));
+            if(!finished.await(180,TimeUnit.SECONDS)){
+                main.post(()->finish("retry"));
+                finished.await(5,TimeUnit.SECONDS);
+            }
         }catch(InterruptedException e){Thread.currentThread().interrupt();main.post(()->finish("retry"));}
         return outcome.equals("retry")||outcome.equals("busy")?Result.retry():Result.success();
     }

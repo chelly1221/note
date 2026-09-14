@@ -1,6 +1,7 @@
 package kr.threechan.note;
 import static org.junit.Assert.*;
 import android.content.Context;
+import android.content.Intent;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemClock;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -46,5 +47,20 @@ public class BackgroundSyncTest {
   BackgroundSyncWorker.configure(context,false);SystemClock.sleep(400);
   assertEquals(0,manager.getWorkInfosForUniqueWork(BackgroundSyncWorker.PERIODIC).get().stream().filter(w->!w.getState().isFinished()).count());
   assertEquals(0,manager.getWorkInfosForUniqueWork(BackgroundSyncWorker.SOON).get().stream().filter(w->!w.getState().isFinished()).count());
+ }
+ @Test public void rebootAndUpdateRestoreMissingWorkWithoutEnablingSignedOutAccounts()throws Exception{
+  WorkManager manager=WorkManager.getInstance(context);
+  BackgroundSyncWorker.foreground(true);
+  BackgroundSyncWorker.configure(context,false);
+  manager.cancelUniqueWork(BackgroundSyncWorker.PERIODIC).getResult().get();
+  manager.cancelUniqueWork(BackgroundSyncWorker.SOON).getResult().get();
+  assertNull(BackgroundSyncReceiver.restore(context,Intent.ACTION_BOOT_COMPLETED));
+  assertFalse(BackgroundSyncWorker.enabled(context));
+  BackgroundSyncWorker.prefs(context).edit().putBoolean("enabled",true).commit();
+  assertNull(BackgroundSyncReceiver.restore(context,"unrelated.action"));
+  BackgroundSyncReceiver.restore(context,Intent.ACTION_BOOT_COMPLETED).getResult().get();
+  BackgroundSyncReceiver.restore(context,Intent.ACTION_MY_PACKAGE_REPLACED).getResult().get();
+  assertEquals(1,manager.getWorkInfosForUniqueWork(BackgroundSyncWorker.PERIODIC).get().stream().filter(w->!w.getState().isFinished()).count());
+  assertEquals(1,manager.getWorkInfosForUniqueWork(BackgroundSyncWorker.SOON).get().stream().filter(w->!w.getState().isFinished()).count());
  }
 }

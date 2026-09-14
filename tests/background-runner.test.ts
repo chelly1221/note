@@ -11,3 +11,16 @@ it('does not launch authentication in a headless run',async()=>{transport.state=
 it('times out an unreachable tunnel and releases it for a later retry',async()=>{transport.ensure.mockReturnValue(new Promise(()=>{}));const run=runBackgroundSync(async()=>true,vi.fn());await vi.advanceTimersByTimeAsync(45001);expect(await run).toBe('retry');expect(transport.stop).toHaveBeenCalledOnce();});
 it('checks logout again after connecting',async()=>{const admitted=vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);const sync=vi.fn();expect(await runBackgroundSync(admitted,sync)).toBe('skipped');expect(sync).not.toHaveBeenCalled();expect(transport.stop).toHaveBeenCalledOnce();});
 it('retries if widget publication fails without recording a false completion',async()=>{expect(await runBackgroundSync(async()=>true,async()=>true,async()=>{throw Error('storage');})).toBe('retry');});
+
+it('cancels the underlying connection wait and requests passive authentication on timeout',async()=>{
+ transport.ensure.mockReturnValue(new Promise(()=>{}));
+ const run=runBackgroundSync(async()=>true,vi.fn());
+ await vi.advanceTimersByTimeAsync(45001); expect(await run).toBe('retry');
+ const [signal,interactive]=transport.ensure.mock.calls[0];
+ expect(interactive).toBe(false); expect(signal.aborted).toBe(true);
+});
+
+it('recognizes authentication when the transport rejects before the state watcher',async()=>{
+ transport.state='NeedsMachineAuth'; transport.ensure.mockRejectedValue(new Error('Tailscale 재인증이 필요해요.'));
+ const sync=vi.fn(); expect(await runBackgroundSync(async()=>true,sync)).toBe('auth'); expect(sync).not.toHaveBeenCalled();
+});

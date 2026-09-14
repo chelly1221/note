@@ -36,7 +36,6 @@ import {
   LoaderCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -483,10 +482,18 @@ export function NoteEditor({
         >
           <Folder size={15} />
           <span>{draft.folder}</span>
-          <span className="breadcrumb-slash">/</span>
-          <span>노트</span>
         </button>
         <div className="editor-actions">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={mode === 'write' ? '미리보기' : '편집하기'}
+            title={mode === 'write' ? '미리보기' : '편집하기'}
+            aria-pressed={mode === 'preview'}
+            onClick={() => setMode(mode === 'write' ? 'preview' : 'write')}
+          >
+            {mode === 'write' ? <Eye size={19} /> : <Pencil size={19} />}
+          </Button>
           <span className={`save-state ${saveError ? 'error-text' : ''}`}>
             {saving ? (
               <LoaderCircle size={14} className="spin" />
@@ -503,6 +510,15 @@ export function NoteEditor({
             onClick={() => void change({ pinned: !draft.pinned })}
           >
             <Star className={draft.pinned ? 'is-starred' : ''} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="focus-button"
+            aria-label={focus ? '집중 모드 종료' : '집중 모드'}
+            onClick={() => onFocusChange(!focus)}
+          >
+            {focus ? <Minimize2 /> : <Maximize2 />}
           </Button>
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger
@@ -588,7 +604,9 @@ export function NoteEditor({
           </span>
         </div>
       )}
-      <div className="editor-modebar">
+      <div
+        className={`editor-modebar${mode === 'preview' ? ' is-reading' : ''}`}
+      >
         <div
           className="format-toolbar"
           role="toolbar"
@@ -634,29 +652,6 @@ export function NoteEditor({
             }}
           />
         </div>
-        <div className="mode-controls">
-          <Tabs value={mode} onValueChange={(value) => setMode(String(value))}>
-            <TabsList className="editor-tabs">
-              <TabsTrigger value="write">
-                <Pencil size={13} />
-                <span>작성</span>
-              </TabsTrigger>
-              <TabsTrigger value="preview">
-                <Eye size={13} />
-                <span>미리보기</span>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="focus-button"
-            aria-label={focus ? '집중 모드 종료' : '집중 모드'}
-            onClick={() => onFocusChange(!focus)}
-          >
-            {focus ? <Minimize2 /> : <Maximize2 />}
-          </Button>
-        </div>
       </div>
       <div
         className="editor-scroll"
@@ -671,10 +666,6 @@ export function NoteEditor({
         }}
       >
         <div className="editor-document">
-          <div className="document-eyebrow">
-            <span className="gradient-stroke" />
-            나의 기록
-          </div>
           <textarea
             ref={titleInput}
             className="title-input"

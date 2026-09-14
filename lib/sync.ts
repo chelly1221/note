@@ -19,6 +19,7 @@ import { documentSchema } from './validation';
 import { createSyncScheduler } from './sync-scheduler';
 import {
   ensureTailscale,
+  recoverTailscale,
   tailscaleFetch,
   subscribeTailEvents,
 } from './tailscale';
@@ -229,6 +230,8 @@ async function performSync() {
   }
   publish({ state: 'syncing', message: '동기화 중' });
   try {
+    await recoverTailscale();
+    if (generation !== connectionGeneration) return;
     const status = await apiRequest<{
       storageId: string;
       nasAvailable: boolean;
@@ -352,6 +355,9 @@ async function performSync() {
 }
 
 export async function syncNow(options: { automatic?: boolean } = {}) {
+  // The inactive Android UI must not compete with its headless sync worker.
+  if (Capacitor.isNativePlatform() && typeof document !== 'undefined' &&
+      document.visibilityState === 'hidden' && !window.BackgroundSyncNative) return;
   if (running) {
     rerunRequested = true;
     return;
@@ -410,6 +416,9 @@ export async function startSync() {
       });
   };
   window.addEventListener('online', online);
+  window.addEventListener('pageshow', online);
+  const visible = () => { if (document.visibilityState === 'visible') online(); };
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', visible);
   window.addEventListener('offline', offline);
   window.addEventListener('focus', requestSync);
   requestSync();
@@ -419,6 +428,8 @@ export async function startSync() {
     interval = undefined;
     scheduler.cancel();
     window.removeEventListener('online', online);
+    window.removeEventListener('pageshow', online);
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', visible);
     window.removeEventListener('offline', offline);
     window.removeEventListener('focus', requestSync);
   };
