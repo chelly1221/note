@@ -22,11 +22,12 @@ account/status cards are omitted. A new note is created from the main header.
 The editor has a single preview/write toggle. Reading hides formatting controls;
 writing keeps the horizontal formatting toolbar. Desktop focus mode remains
 available in both modes. The document begins with its title and useful metadata,
-with comfortable body leading and preserved font-size preferences.
+with comfortable body leading.
 
-Settings uses the same title scale and a full-screen mobile surface, with Tailscale,
-data and writing preferences. Keep errors, sync state, connection/account details,
-backup/restore explanations and storage protection information visible.
+Settings uses the same title scale and a full-screen mobile surface. Keep only
+connection/account actions and backup export/import buttons, with actionable errors.
+No device-name input, status summary, preference controls, storage section or extra
+headings. Automatic save, offline support and server recovery remain internal.
 
 Verification: 319px mobile and 1280px desktop with synthetic local notes. Search,
 navigation, settings, editor and Markdown preview checked. Typecheck, lint and

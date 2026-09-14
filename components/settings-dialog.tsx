@@ -2,16 +2,10 @@
 import BackgroundSyncSettings from './background-sync-settings';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  Cloud,
-  CloudOff,
   Download,
   Upload,
   Link2,
   LoaderCircle,
-  RefreshCw,
-  Check,
-  ShieldCheck,
-  HardDrive,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,14 +19,9 @@ import {
   connectionSettings,
   connectServer,
   disconnectServer,
-  getServerSyncSnapshot,
-  getSyncSnapshot,
   refreshPending,
-  subscribeSync,
-  syncNow,
 } from '@/lib/sync';
 import { exportNotebook, importNotebook } from '@/lib/export';
-import { getSetting, setSetting } from '@/lib/database';
 import {
   logoutTailscale,
   getTailscaleSnapshot,
@@ -43,13 +32,6 @@ import { openAuthBrowser } from '@/lib/auth-browser';
 import { notify } from '@/components/notice';
 import { APP_VERSION } from '@/lib/model';
 import { finishEditing } from '@/lib/edit-session';
-import {
-  applyOfflineUpdate,
-  checkOfflineUpdate,
-  getOfflineServerSnapshot,
-  getOfflineSnapshot,
-  subscribeOffline,
-} from '@/lib/pwa';
 import { Capacitor } from '@capacitor/core';
 
 export function SettingsDialog({
@@ -71,24 +53,11 @@ export function SettingsDialog({
     (tunnel.state === 'NeedsMachineAuth'
       ? 'https://console.tailscale.com/admin/machines'
       : '');
-  const offline = useSyncExternalStore(
-    subscribeOffline,
-    getOfflineSnapshot,
-    getOfflineServerSnapshot,
-  );
-  const sync = useSyncExternalStore(
-    subscribeSync,
-    getSyncSnapshot,
-    getServerSyncSnapshot,
-  );
   const [login, setLogin] = useState('');
   const [device, setDevice] = useState('');
   const [connected, setConnected] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [persistent, setPersistent] = useState(false);
-  const [fontSize, setFontSize] = useState(16);
-  const [exportAt, setExportAt] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -98,9 +67,6 @@ export function SettingsDialog({
       setDevice(value.deviceName);
       setConnected(value.connected);
     });
-    void navigator.storage?.persisted?.().then(setPersistent);
-    void getSetting('fontSize', 16).then(setFontSize);
-    void getSetting<string | null>('lastExportAt', null).then(setExportAt);
   }, [open]);
   async function connect(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -141,7 +107,6 @@ export function SettingsDialog({
     setError('');
     try {
       await exportNotebook();
-      setExportAt(new Date().toISOString());
       notify('전체 백업 파일을 만들었어요.');
     } catch (err) {
       setError(err instanceof Error ? err.message : '백업을 만들지 못했어요.');
@@ -166,40 +131,8 @@ export function SettingsDialog({
   }
   const content = <>
         <div className="settings-sections">
-          <section className="settings-connection-section"><h3>Tailscale</h3>
+          <section className="settings-connection-section" aria-label="서버 연결">
             <BackgroundSyncSettings />
-            <div className="connection-summary">
-              <span
-                className={`connection-symbol ${sync.nasAvailable ? 'connected' : ''}`}
-              >
-                {sync.nasAvailable ? <Cloud /> : <CloudOff />}
-              </span>
-              <div>
-                <strong>
-                  {sync.state === 'auth-required'
-                    ? '다시 연결이 필요해요'
-                    : sync.state === 'offline' || sync.state === 'error'
-                      ? '서버 연결 대기'
-                      : connected
-                        ? 'Tailscale로 연결됨'
-                        : '기기에만 저장 중'}
-                </strong>
-                <p>{sync.message}</p>
-              </div>
-              {connected && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="지금 동기화"
-                  onClick={() => void syncNow()}
-                  disabled={sync.state === 'syncing'}
-                >
-                  <RefreshCw
-                    className={sync.state === 'syncing' ? 'spin' : ''}
-                  />
-                </Button>
-              )}
-            </div>
             {loginUrl && (
               <a
                 className="access-login"
@@ -218,26 +151,10 @@ export function SettingsDialog({
                 동기화를 위해 Tailscale 다시 인증
               </a>
             )}
-            {sync.lastSyncedAt && (
-              <p className="settings-hint">
-                마지막 동기화:{' '}
-                {new Date(sync.lastSyncedAt).toLocaleString('ko-KR')}
-              </p>
-            )}
             <form onSubmit={connect} className="settings-form">
               {connected && login && (
                 <p className="settings-hint">연결 계정: {login}</p>
               )}
-              <label>
-                기기 이름
-                <input
-                  value={device}
-                  onChange={(e) => setDevice(e.target.value)}
-                  placeholder="나의 안드로이드"
-                  maxLength={80}
-                  required
-                />
-              </label>
               <div className="settings-button-row">
                 <Button type="submit" disabled={busy}>
                   {busy ? <LoaderCircle className="spin" /> : <Link2 />}
@@ -265,32 +182,19 @@ export function SettingsDialog({
                 )}
               </div>
             </form>
-            <p className="settings-hint">
-              <ShieldCheck size={14} />
-              입력 즉시 기기에 저장하고, Tailscale을 통해서만 NAS에 동기화해요.
-            </p>
           </section>
           <div className="settings-data-section">
             <div className="settings-section">
-              <h3>전체 백업</h3>
-              <p>노트와 첨부 이미지를 하나의 파일에 담아요.</p>
               <Button
                 variant="outline"
                 onClick={() => void backup()}
                 disabled={busy}
               >
                 <Download />
-                백업 파일 만들기
+                백업 만들기
               </Button>
-              {exportAt && (
-                <small>
-                  최근 백업: {new Date(exportAt).toLocaleString('ko-KR')}
-                </small>
-              )}
             </div>
             <div className="settings-section">
-              <h3>백업 가져오기</h3>
-              <p>기존 노트를 유지하고, 백업의 기록을 새 사본으로 추가해요.</p>
               <input
                 ref={fileInput}
                 type="file"
@@ -308,103 +212,9 @@ export function SettingsDialog({
                 disabled={busy}
               >
                 <Upload />
-                백업 파일 선택
+                백업 가져오기
               </Button>
             </div>
-            <div className="settings-section">
-              <h3>기기 저장소</h3>
-
-              <Button
-                variant="ghost"
-                onClick={async () => {
-                  const result = await navigator.storage?.persist?.();
-                  setPersistent(Boolean(result));
-                  notify(
-                    result
-                      ? '기기 저장소 보호가 활성화됐어요.'
-                      : '브라우저가 저장소 보호를 허용하지 않았어요. 전체 백업을 함께 사용해 주세요.',
-                  );
-                }}
-              >
-                {persistent ? <Check /> : <HardDrive />}
-                {persistent ? '저장소 보호 활성화됨' : '기기 저장소 보호 요청'}
-              </Button>
-              <small>
-                브라우저의 사이트 데이터를 직접 삭제하면 기기에만 저장한 기록도
-                삭제됩니다.
-              </small>
-            </div>
-          </div>
-          <div className="settings-preferences-section">
-            <div className="settings-section">
-              <h3>앱과 오프라인 사용</h3>
-              <p>
-                {offline.ready
-                  ? '작성 중에는 오프라인에서도 자동 저장해요. 앱을 다시 열 때는 Tailscale 연결을 확인합니다.'
-                  : offline.unsupported
-                    ? '이 브라우저에서 오프라인 준비를 마치지 못했어요. 연결된 상태에서 다시 열어 주세요.'
-                    : '오프라인에서 사용할 화면을 준비하고 있어요.'}
-              </p>
-              {!Capacitor.isNativePlatform() && (
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    void (offline.updateAvailable
-                      ? applyOfflineUpdate()
-                      : checkOfflineUpdate())
-                  }
-                >
-                  <RefreshCw />
-                  {offline.updateAvailable ? '새 버전 적용' : '업데이트 확인'}
-                </Button>
-              )}
-            </div>
-            <div className="settings-section">
-              <h3>본문 글자 크기</h3>
-
-              <div className="font-options">
-                {[16, 18, 20, 22].map((size) => (
-                  <Button
-                    key={size}
-                    variant={fontSize === size ? 'default' : 'outline'}
-                    aria-pressed={fontSize === size}
-                    onClick={() => {
-                      setFontSize(size);
-                      document.documentElement.style.setProperty(
-                        '--editor-font-size',
-                        `${size}px`,
-                      );
-                      void setSetting('fontSize', size);
-                    }}
-                  >
-                    {size}
-                  </Button>
-                ))}
-              </div>
-              <p className="font-preview" style={{ fontSize }}>
-                작은 생각이 모여 나의 기록이 됩니다.
-              </p>
-            </div>
-            <details className="settings-section settings-shortcuts"><summary>키보드 단축키</summary>
-              <dl className="shortcut-list">
-                <div>
-                  <dt>새 노트</dt>
-                  <dd>Ctrl / ⌘ + Alt + N</dd>
-                </div>
-                <div>
-                  <dt>노트 검색</dt>
-                  <dd>Ctrl / ⌘ + K</dd>
-                </div>
-                <div>
-                  <dt>굵게 / 기울임</dt>
-                  <dd>Ctrl / ⌘ + B / I</dd>
-                </div>
-                <div>
-                  <dt>동기화</dt>
-                  <dd>Ctrl / ⌘ + S</dd>
-                </div>
-              </dl>
-            </details>
           </div>
         </div>
         {error && (
@@ -418,5 +228,5 @@ export function SettingsDialog({
         </div>
   </>;
   if (embedded) return open ? <section id="note-settings-panel" className="settings-dialog embedded-settings" aria-labelledby="note-settings-title"><header className="settings-page-header"><h2 id="note-settings-title">설정</h2></header><div className="settings-page-content">{content}</div></section> : null;
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="settings-dialog"><DialogHeader><DialogTitle>설정</DialogTitle><DialogDescription className="sr-only">연결, 백업, 쓰기 환경을 관리해요.</DialogDescription></DialogHeader>{content}</DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="settings-dialog"><DialogHeader><DialogTitle>설정</DialogTitle><DialogDescription className="sr-only">서버 연결과 백업을 관리해요.</DialogDescription></DialogHeader>{content}</DialogContent></Dialog>;
 }
